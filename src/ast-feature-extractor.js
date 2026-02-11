@@ -5,7 +5,7 @@
  * Works with Tree-sitter to parse code and extract structure signatures that can
  * be passed via postMessage for AST-aware similarity calculation.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

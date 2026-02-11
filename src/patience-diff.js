@@ -10,7 +10,7 @@
  * - More intuitive diff output
  * - Uses "unique common elements" as anchors
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

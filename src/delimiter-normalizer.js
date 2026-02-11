@@ -4,7 +4,7 @@
  * Normalizes whitespace inside delimiters for text comparison.
  * Supports common delimiter pairs and language-specific handling.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

@@ -3,8 +3,8 @@
 A free, private text comparison tool for developers, network engineers, and writers. Compare code, config files, and any text content with semantic highlighting - 100% client-side, no signup required.
 
 **Status**: Production Ready with Enhanced Algorithms  
-**License**: MIT (Copyright (c) 2025 Jason Tally and contributors)  
-**Version**: 0.1.9  
+**License**: MIT (Copyright (c) 2026 Jason Tally and contributors)  
+**Version**: 0.1.10  
 **URL**: [https://diff.jasontally.com](https://diff.jasontally.com)
 
 ## Overview
@@ -408,4 +408,4 @@ Smart whitespace handling inside code delimiters:
 
 ---
 
-Created by Jason Tally | [MIT License](./LICENSE) | Version 0.1.9
+Created by Jason Tally | [MIT License](./LICENSE) | Version 0.1.10

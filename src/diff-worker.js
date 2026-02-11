@@ -10,7 +10,7 @@
  * - Static site compatible (just serve files via HTTP)
  * - Testable: Same code runs in Node.js and browser
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

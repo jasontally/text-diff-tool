@@ -4,7 +4,7 @@
  * Identifies comment and string regions in code lines.
  * Uses tree-sitter for accurate parsing when available, with regex fallback.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

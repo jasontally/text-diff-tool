@@ -4,7 +4,7 @@
  * Provides validation for ES module syntax, import paths, and browser compatibility
  * before Web Worker creation. Ensures graceful degradation when modules fail to load.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

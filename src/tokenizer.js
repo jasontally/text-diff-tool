@@ -4,7 +4,7 @@
  * Lightweight tokenizer for code comparison. Breaks lines into meaningful
  * tokens without requiring full language parsers.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

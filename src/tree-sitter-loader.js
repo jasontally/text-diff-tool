@@ -4,7 +4,7 @@
  * Manages loading and initialization of web-tree-sitter and language grammars.
  * Handles WASM loading, caching, and error recovery.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

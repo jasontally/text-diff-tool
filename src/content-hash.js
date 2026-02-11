@@ -4,7 +4,7 @@
  * SimHash-style content hashing for fast similarity comparison.
  * Uses character bigrams (2-grams) for stable fuzzy matching.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

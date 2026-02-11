@@ -4,7 +4,7 @@
  * Tests for the LCS preprocessing optimization that improves performance
  * on files with large unchanged sections.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

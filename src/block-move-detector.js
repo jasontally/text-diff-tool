@@ -4,7 +4,7 @@
  * Git-style hash-based block move detection algorithm.
  * Optimized for reliability and performance with browser Web Worker support.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

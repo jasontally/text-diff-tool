@@ -2,7 +2,7 @@
 
 This file contains guidance for LLM agents working on the Text Diff Tool codebase.
 
-**Copyright (c) 2025 Jason Tally and contributors** - SPDX-License-Identifier: MIT
+**Copyright (c) 2026 Jason Tally and contributors** - SPDX-License-Identifier: MIT
 
 ## Project Overview
 

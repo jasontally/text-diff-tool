@@ -4,7 +4,7 @@
  * Provides Tree-sitter query definitions for syntax highlighting.
  * Maps Tree-sitter node types to CSS class names.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

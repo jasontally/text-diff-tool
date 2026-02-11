@@ -4,7 +4,7 @@
  * Compares Abstract Syntax Trees from Tree-sitter to calculate
  * structural similarity between code lines.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

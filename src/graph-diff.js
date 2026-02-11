@@ -2,7 +2,7 @@
  * Graph-based diff algorithm data structures
  * Based on difftastic's approach using Dijkstra's algorithm on a DAG
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

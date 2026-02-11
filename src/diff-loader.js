@@ -7,7 +7,7 @@
  * 
  * This enables the same algorithm code to run in both contexts.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 

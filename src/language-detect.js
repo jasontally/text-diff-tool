@@ -4,7 +4,7 @@
  * Detects programming language from file extension and/or content.
  * Maps detected languages to Tree-sitter language identifiers.
  * 
- * Copyright (c) 2025 Jason Tally and contributors
+ * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
 
