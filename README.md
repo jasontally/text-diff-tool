@@ -4,7 +4,7 @@ A free, private text comparison tool for developers, network engineers, and writ
 
 **Status**: Production Ready with Enhanced Algorithms  
 **License**: MIT (Copyright (c) 2025 Jason Tally and contributors)  
-**Version**: 0.1.4  
+**Version**: 0.1.5  
 **URL**: [https://diff.jasontally.com](https://diff.jasontally.com)
 
 ## Overview
