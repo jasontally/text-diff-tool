@@ -3,8 +3,9 @@
 A free, private text comparison tool for developers, network engineers, and writers. Compare code, config files, and any text content with semantic highlighting - 100% client-side, no signup required.
 
 **Status**: Production Ready with Enhanced Algorithms  
-**License**: MIT (Copyright (c) 2025 Jason Tally and contributors)
-**Version**: 0.1.0
+**License**: MIT (Copyright (c) 2025 Jason Tally and contributors)  
+**Version**: 0.1.0  
+**URL**: [https://diff.jasontally.com](https://diff.jasontally.com)
 
 ## Overview
 
