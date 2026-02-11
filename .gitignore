@@ -33,3 +33,8 @@ npm-debug.log*
 # Build artifacts (if any)
 dist/
 build/
+
+# Test Python files
+original.py
+modified.py
+test_python_diff.py

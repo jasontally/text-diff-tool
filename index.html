@@ -10,7 +10,7 @@
     <link rel="canonical" href="https://diff.jasontally.com">
     <meta name="url" content="https://diff.jasontally.com">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <meta name="generator" content="Text Diff Tool v0.1.13">
+    <meta name="generator" content="Text Diff Tool v0.1.14">
     <meta name="url" content="https://diff.jasontally.com">
     <meta property="og:title" content="Text Diff Tool - Compare Code & Config Files Online | Free & Private">
     <meta property="og:description" content="Free online text diff tool. 100% private - your data never leaves your browser. No signup required.">
@@ -2084,7 +2084,7 @@ workerCode = workerCode.replace(
         
         // Version management
         const VERSION = {
-            current: "0.1.13",
+            current: "0.1.14",
             previous: localStorage.getItem("textDiffTool_version") || "0.0.0",
             update: function(newVersion) {
                 this.previous = this.current;
@@ -3119,7 +3119,7 @@ workerCode = workerCode.replace(
 
                         const oldLineNum = document.createElement('div');
                         oldLineNum.className = 'unified-line-num';
-                        oldLineNum.textContent = '~ ' + prevLineNum++;
+                        oldLineNum.textContent = '~' + prevLineNum++;
 
                         const oldContent = document.createElement('div');
                         oldContent.className = 'unified-content';
@@ -3148,7 +3148,7 @@ workerCode = workerCode.replace(
 
                         const newLineNum = document.createElement('div');
                         newLineNum.className = 'unified-line-num';
-                        newLineNum.textContent = '~ ' + currLineNum++;
+                        newLineNum.textContent = '~' + currLineNum++;
 
                         const newContent = document.createElement('div');
                         newContent.className = 'unified-content';
@@ -3394,7 +3394,7 @@ workerCode = workerCode.replace(
                             prevContentDiv.textContent = ' ';
 
                             currRow.classList.add(cssClass, 'block-moved-destination', 'block-moved-indicator');
-                            currLineNumDiv.textContent = symbol + ' ' + currLineNum++;
+                            currLineNumDiv.textContent = symbol + currLineNum++;
                             currContentDiv.textContent = ' ' + validAddedLines[0];
                             if (tooltipText) currRow.title = tooltipText;
                         } else {
@@ -3458,7 +3458,7 @@ workerCode = workerCode.replace(
                                 : '';
                             
                             prevRow.classList.add(cssClass, 'block-moved-source', 'block-moved-indicator');
-                            prevLineNumDiv.textContent = symbol + ' ' + prevLineNum++;
+                            prevLineNumDiv.textContent = symbol + prevLineNum++;
                             prevContentDiv.textContent = ' ' + validRemovedLines[0];
                             if (tooltipText) prevRow.title = tooltipText;
 
@@ -3529,10 +3529,10 @@ workerCode = workerCode.replace(
                         if (validModLines.length === 1) {
                             // Single line modified - render with ~ symbol
                             prevRow.classList.add('modified');
-                            prevLineNumDiv.textContent = '~ ' + prevLineNum++;
+                            prevLineNumDiv.textContent = '~' + prevLineNum++;
 
                             currRow.classList.add('modified');
-                            currLineNumDiv.textContent = '~ ' + currLineNum++;
+                            currLineNumDiv.textContent = '~' + currLineNum++;
 
                             // Use hybrid selection: char for small changes, word for larger changes
                             const diffParts = getDiffPartsForChange(change, removedLineValue, addedLineValue);
@@ -3580,8 +3580,8 @@ workerCode = workerCode.replace(
                                 const currContentDiv = document.createElement('div');
                                 currContentDiv.className = 'line-content';
 
-                                prevLineNumDiv.textContent = '~ ' + prevLineNum++;
-                                currLineNumDiv.textContent = '~ ' + currLineNum++;
+prevLineNumDiv.textContent = '~' + prevLineNum++;
+                            currLineNumDiv.textContent = '~' + currLineNum++;
                                 
                                 // Use inline highlighting if available, otherwise plain text
                                 if (prevLineParts[i] && currLineParts[i]) {
@@ -3642,7 +3642,7 @@ workerCode = workerCode.replace(
                                     : `Block moved to line ${blockInfo.to + 1}`;
                                 
                                 prevRow.classList.add(cssClass, 'block-moved-source', 'block-moved-indicator');
-                                prevLineNumDiv.textContent = symbol + ' ' + prevLineNum++;
+prevLineNumDiv.textContent = symbol + prevLineNum++;
                                 prevContentDiv.textContent = ' ' + change.value;
                                 prevRow.title = tooltipText;
                                 
@@ -3663,7 +3663,7 @@ workerCode = workerCode.replace(
                                 prevContentDiv.textContent = '';
                                 
                                 currRow.classList.add(cssClass, 'block-moved-destination', 'block-moved-indicator');
-                                currLineNumDiv.textContent = symbol + ' ' + currLineNum++;
+currLineNumDiv.textContent = symbol + currLineNum++;
                                 currContentDiv.textContent = ' ' + change.value;
                                 currRow.title = tooltipText;
                             }
@@ -3695,7 +3695,7 @@ workerCode = workerCode.replace(
                                     const newPrevContent = document.createElement('div');
                                     newPrevContent.className = 'line-content';
                                     
-                                    newPrevLineNum.textContent = sourceSymbol + ' ' + prevLineNum++;
+                                    newPrevLineNum.textContent = sourceSymbol + prevLineNum++;
                                     newPrevContent.textContent = ' ' + line;
                                     if (isFirstLine) newPrevRow.title = sourceTooltip;
                                     
@@ -3735,7 +3735,7 @@ workerCode = workerCode.replace(
                                     const newCurrContent = document.createElement('div');
                                     newCurrContent.className = 'line-content';
                                     
-                                    newCurrLineNum.textContent = destSymbol + ' ' + currLineNum++;
+                                    newCurrLineNum.textContent = destSymbol + currLineNum++;
                                     newCurrContent.textContent = ' ' + line;
                                     if (isFirstLine) newCurrRow.title = destTooltip;
                                     
@@ -4629,14 +4629,14 @@ workerCode = workerCode.replace(
 <p><strong>Technology:</strong></p>
 <p>Built with vanilla JavaScript using the <a href="https://github.com/kpdecker/jsdiff" target="_blank" rel="noopener">jsdiff</a> library. All processing happens in your browser via Web Workers.</p>
 <p>&copy; 2025 Jason Tally and contributors. Licensed under MIT.</p>
-            <p>Version: <span id="version-display">0.1.13</span></p>
+            <p>Version: <span id="version-display">0.1.14</span></p>
             `;
             showModal('About', aboutContent);
         };
     </script>
     <footer>
         <div style="text-align: center; margin-top: 20px; padding: 10px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
-            Version: <span id="version-display">0.1.13</span>
+            Version: <span id="version-display">0.1.14</span>
         </div>
     </footer>
 </body>
