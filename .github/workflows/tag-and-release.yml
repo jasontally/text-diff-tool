@@ -30,8 +30,8 @@ jobs:
     - name: Get current version
       id: get_version
       run: |
-        CURRENT_VERSION=$(cat VERSION)
-        echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        CURRENT_VERSION="$(cat VERSION)"
+        echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
         echo "current_version=$CURRENT_VERSION"
     
     - name: Check if tag exists
@@ -39,10 +39,10 @@ jobs:
       run: |
         CURRENT_VERSION="${{ steps.get_version.outputs.CURRENT_VERSION }}"
         if git rev-parse "v${CURRENT_VERSION}" >/dev/null 2>&1; then
-          echo "TAG_EXISTS=true" >> $GITHUB_OUTPUT
+          echo "TAG_EXISTS=true" >> "$GITHUB_OUTPUT"
           echo "tag_exists=true"
         else
-          echo "TAG_EXISTS=false" >> $GITHUB_OUTPUT
+          echo "TAG_EXISTS=false" >> "$GITHUB_OUTPUT"
           echo "tag_exists=false"
         fi
     
@@ -50,16 +50,15 @@ jobs:
       if: steps.check_tag.outputs.TAG_EXISTS == 'true'
       id: increment
       run: |
-        CURRENT_VERSION="${{ steps.get_version.outputs.CURRENT_VERSION }}"
-        NEW_VERSION=$(node scripts/version.js --increment-patch)
-        echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+        NEW_VERSION="$(node scripts/version.js --increment-patch)"
+        echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_OUTPUT"
         echo "new_version=$NEW_VERSION"
         
         # Commit the version bump
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git add VERSION index.html README.md package.json
-        git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+        git commit -m "chore: bump version to ${NEW_VERSION} [skip ci]"
         git push
     
     - name: Create tag
@@ -73,7 +72,7 @@ jobs:
         
         git tag "v${VERSION}"
         git push origin "v${VERSION}"
-        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
         echo "version=$VERSION"
     
     - name: Generate release notes
@@ -82,29 +81,31 @@ jobs:
         VERSION="${{ steps.create_tag.outputs.VERSION }}"
         
         # Get the previous tag
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+        PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")"
         
         if [ -z "$PREVIOUS_TAG" ]; then
           # No previous tag, use all commits
-          COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          COMMITS="$(git log --pretty=format:"- %s (%h)" --no-merges)"
         else
           # Get commits between tags
-          COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges ${PREVIOUS_TAG}..HEAD)
+          COMMITS="$(git log --pretty=format:"- %s (%h)" --no-merges "${PREVIOUS_TAG}..HEAD")"
         fi
         
-        # Build release notes file
-        echo "## Changes in v${VERSION}" > release_notes.md
-        echo "" >> release_notes.md
-        echo "${COMMITS}" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "---" >> release_notes.md
-        echo "" >> release_notes.md
-        if [ -n "$PREVIOUS_TAG" ]; then
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${VERSION}" >> release_notes.md
-        fi
+        # Build release notes file using grouping
+        {
+          echo "## Changes in v${VERSION}"
+          echo ""
+          echo "${COMMITS}"
+          echo ""
+          echo "---"
+          echo ""
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${VERSION}"
+          fi
+        } > release_notes.md
     
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.create_tag.outputs.VERSION }}
         name: v${{ steps.create_tag.outputs.VERSION }}
