@@ -4,7 +4,7 @@ A free, private text comparison tool for developers, network engineers, and writ
 
 **Status**: Production Ready with Enhanced Algorithms  
 **License**: MIT (Copyright (c) 2026 Jason Tally and contributors)  
-**Version**: 0.1.11  
+**Version**: 0.1.12  
 **URL**: [https://diff.jasontally.com](https://diff.jasontally.com)
 
 ## Overview
@@ -408,4 +408,4 @@ Smart whitespace handling inside code delimiters:
 
 ---
 
-Created by Jason Tally | [MIT License](./LICENSE) | Version 0.1.11
+Created by Jason Tally | [MIT License](./LICENSE) | Version 0.1.12

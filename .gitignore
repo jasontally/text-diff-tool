@@ -8,6 +8,9 @@ playwright/.cache/
 coverage/
 coverage.json
 
+# Manual test screenshots
+uat-test-*.png
+
 # OS files
 .DS_Store
 Thumbs.db
