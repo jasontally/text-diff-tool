@@ -10,7 +10,7 @@
     <link rel="canonical" href="https://diff.jasontally.com">
     <meta name="url" content="https://diff.jasontally.com">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <meta name="generator" content="Text Diff Tool v0.1.6">
+    <meta name="generator" content="Text Diff Tool v0.1.7">
     <meta name="url" content="https://diff.jasontally.com">
     <meta property="og:title" content="Text Diff Tool - Compare Code & Config Files Online | Free & Private">
     <meta property="og:description" content="Free online text diff tool. 100% private - your data never leaves your browser. No signup required.">
@@ -2078,7 +2078,7 @@ workerCode = workerCode.replace(
         
         // Version management
         const VERSION = {
-            current: "0.1.6",
+            current: "0.1.7",
             previous: localStorage.getItem("textDiffTool_version") || "0.0.0",
             update: function(newVersion) {
                 this.previous = this.current;
@@ -4623,14 +4623,14 @@ workerCode = workerCode.replace(
 <p><strong>Technology:</strong></p>
 <p>Built with vanilla JavaScript using the <a href="https://github.com/kpdecker/jsdiff" target="_blank" rel="noopener">jsdiff</a> library. All processing happens in your browser via Web Workers.</p>
 <p>&copy; 2025 Jason Tally and contributors. Licensed under MIT.</p>
-            <p>Version: <span id="version-display">0.1.6</span></p>
+            <p>Version: <span id="version-display">0.1.7</span></p>
             `;
             showModal('About', aboutContent);
         };
     </script>
     <footer>
         <div style="text-align: center; margin-top: 20px; padding: 10px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
-            Version: <span id="version-display">0.1.6</span>
+            Version: <span id="version-display">0.1.7</span>
         </div>
     </footer>
 </body>

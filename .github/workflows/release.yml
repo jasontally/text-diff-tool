@@ -34,12 +34,12 @@ jobs:
     - name: Verify versions match
       run: |
         if [ "${{ steps.get_version.outputs.VERSION }}" != "${{ steps.get_file_version.outputs.FILE_VERSION }}" ]; then
-          echo "❌ Version mismatch!"
-          echo "   Tag version: ${{ steps.get_version.outputs.VERSION }}"
-          echo "   File version: ${{ steps.get_file_version.outputs.FILE_VERSION }}"
+          echo "Version mismatch!"
+          echo "Tag version: ${{ steps.get_version.outputs.VERSION }}"
+          echo "File version: ${{ steps.get_file_version.outputs.FILE_VERSION }}"
           exit 1
         fi
-        echo "✅ Versions match: ${{ steps.get_version.outputs.VERSION }}"
+        echo "Versions match: ${{ steps.get_version.outputs.VERSION }}"
     
     - name: Generate release notes
       id: release_notes
@@ -57,24 +57,27 @@ jobs:
           COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges ${PREVIOUS_TAG}..HEAD)
         fi
         
-        # Build release notes
-        NOTES="## Changes in v${VERSION}
-
-${COMMITS}
-
----
-
-**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG:-v0.0.0}...v${VERSION}"
+        # Build release notes file
+        echo "## Changes in v${VERSION}" > release_notes.md
+        echo "" >> release_notes.md
+        echo "${COMMITS}" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "---" >> release_notes.md
+        echo "" >> release_notes.md
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v${VERSION}" >> release_notes.md
+        fi
         
-        echo "NOTES<<EOF" >> $GITHUB_OUTPUT
-        echo "$NOTES" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        # Output for GitHub Actions
+        echo 'notes<<EOF' >> $GITHUB_OUTPUT
+        cat release_notes.md >> $GITHUB_OUTPUT
+        echo 'EOF' >> $GITHUB_OUTPUT
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        name: "v${{ steps.get_version.outputs.VERSION }}"
-        body: ${{ steps.release_notes.outputs.NOTES }}
+        name: v${{ steps.get_version.outputs.VERSION }}
+        body_path: release_notes.md
         draft: false
         prerelease: false
       env:
