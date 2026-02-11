@@ -3,145 +3,228 @@
 /**
  * Version Management Script for Text Diff Tool
  * 
- * This script manages version incrementing and updates all version references
- * in the codebase when patch versions are incremented.
+ * Uses VERSION file as single source of truth.
+ * Updates all version references across the codebase.
  * 
  * Usage:
- *   node scripts/version.js --increment-patch
- *   node scripts/version.js --get-version
- *   node scripts/version.js --set-version 0.2.0
+ *   node scripts/version.js --increment-patch    # Increment patch version
+ *   node scripts/version.js --increment-minor    # Increment minor version
+ *   node scripts/version.js --increment-major    # Increment major version
+ *   node scripts/version.js --get-version          # Get current version
+ *   node scripts/version.js --set-version X.Y.Z  # Set specific version
  */
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const PROJECT_ROOT = path.resolve(process.cwd());
-const VERSION_FILES = {
-  'index.html': [
-    { regex: /current:\s*"(\d+\.\d+\.\d+)"/g, group: 1 },
-    { regex: /Version:\s*<span id="version-display">(\d+\.\d+\.\d+)<\/span>/g, group: 1 },
-    { regex: /Version:\s*<span id="version-display">(\d+\.\d+\.\d+)<\/span>/g, group: 1 },
-  ],
-  'README.md': [
-    { regex: /\*\*Version\*\*:\s*(\d+\.\d+\.\d+)/g, group: 1 },
-  ]
-};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const VERSION_FILE = path.join(PROJECT_ROOT, 'VERSION');
+
+// Define all files that contain version references
+const VERSION_LOCATIONS = [
+  {
+    file: 'index.html',
+    patterns: [
+      { regex: /<meta name="generator" content="Text Diff Tool v(\d+\.\d+\.\d+)">/g, template: '<meta name="generator" content="Text Diff Tool v{{version}}">' },
+      { regex: /current:\s*"(\d+\.\d+\.\d+)"/g, template: 'current: "{{version}}"' },
+      { regex: /<span id="version-display">(\d+\.\d+\.\d+)<\/span>/g, template: '<span id="version-display">{{version}}</span>' },
+    ]
+  },
+  {
+    file: 'README.md',
+    patterns: [
+      { regex: /\*\*Version\*\*:\s*(\d+\.\d+\.\d+)/g, template: '**Version**: {{version}}' },
+      { regex: /Version (\d+\.\d+\.\d+)$/gm, template: 'Version {{version}}' },
+    ]
+  },
+  {
+    file: 'package.json',
+    patterns: [
+      { regex: /"version":\s*"(\d+\.\d+\.\d+)"/g, template: '"version": "{{version}}"' },
+    ]
+  },
+  {
+    file: 'VERSION',
+    patterns: [
+      { regex: /^(\d+\.\d+\.\d+)$/gm, template: '{{version}}' },
+    ]
+  }
+];
 
 class VersionManager {
   constructor() {
-    this.currentVersion = null;
-    this.loadCurrentVersion();
+    this.currentVersion = this.readVersionFile();
   }
 
-  loadCurrentVersion() {
-    // Try to find current version from any file
-    for (const [file, patterns] of Object.entries(VERSION_FILES)) {
-      const filePath = path.join(PROJECT_ROOT, file);
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf8');
-        for (const pattern of patterns) {
-          const match = pattern.regex.exec(content);
-          if (match) {
-            this.currentVersion = match[pattern.group];
-            return;
-          }
-        }
+  readVersionFile() {
+    try {
+      const content = fs.readFileSync(VERSION_FILE, 'utf8').trim();
+      if (this.validateVersion(content)) {
+        return content;
       }
+    } catch (error) {
+      console.error(`Error reading VERSION file: ${error.message}`);
     }
-    
-    // If no version found, default to 0.1.0
-    this.currentVersion = '0.1.0';
+    return '0.1.0';
+  }
+
+  validateVersion(version) {
+    return /^\d+\.\d+\.\d+$/.test(version);
+  }
+
+  parseVersion(version) {
+    const [major, minor, patch] = version.split('.').map(Number);
+    return { major, minor, patch };
   }
 
   getCurrentVersion() {
     return this.currentVersion;
   }
 
-  incrementPatchVersion() {
-    const [major, minor, patch] = this.currentVersion.split('.').map(Number);
+  incrementPatch() {
+    const { major, minor, patch } = this.parseVersion(this.currentVersion);
     const newVersion = `${major}.${minor}.${patch + 1}`;
     this.updateVersion(newVersion);
     return newVersion;
   }
 
-  setVersion(newVersion) {
+  incrementMinor() {
+    const { major, minor } = this.parseVersion(this.currentVersion);
+    const newVersion = `${major}.${minor + 1}.0`;
     this.updateVersion(newVersion);
+    return newVersion;
+  }
+
+  incrementMajor() {
+    const { major } = this.parseVersion(this.currentVersion);
+    const newVersion = `${major + 1}.0.0`;
+    this.updateVersion(newVersion);
+    return newVersion;
+  }
+
+  setVersion(newVersion) {
+    if (!this.validateVersion(newVersion)) {
+      throw new Error(`Invalid version format: ${newVersion}. Expected format: X.Y.Z`);
+    }
+    this.updateVersion(newVersion);
+    return newVersion;
   }
 
   updateVersion(newVersion) {
     this.currentVersion = newVersion;
     
-    // Update all version references
-    for (const [file, patterns] of Object.entries(VERSION_FILES)) {
-      const filePath = path.join(PROJECT_ROOT, file);
-      if (fs.existsSync(filePath)) {
-        let content = fs.readFileSync(filePath, 'utf8');
-        
-        for (const pattern of patterns) {
-          content = content.replace(pattern.regex, (match, currentVersion) => {
-            return match.replace(currentVersion, newVersion);
-          });
+    let updatedFiles = [];
+    
+    for (const location of VERSION_LOCATIONS) {
+      const filePath = path.join(PROJECT_ROOT, location.file);
+      
+      if (!fs.existsSync(filePath)) {
+        console.warn(`Warning: ${location.file} not found, skipping...`);
+        continue;
+      }
+
+      let content = fs.readFileSync(filePath, 'utf8');
+      let fileUpdated = false;
+      
+      for (const pattern of location.patterns) {
+        const newContent = content.replace(pattern.regex, pattern.template.replace('{{version}}', newVersion));
+        if (newContent !== content) {
+          content = newContent;
+          fileUpdated = true;
         }
-        
+      }
+      
+      if (fileUpdated) {
         fs.writeFileSync(filePath, content, 'utf8');
-        console.log(`Updated version in ${file} to ${newVersion}`);
+        updatedFiles.push(location.file);
       }
     }
     
-    // Update the JavaScript version object in index.html
-    this.updateJSVersion(newVersion);
-  }
-
-  updateJSVersion(newVersion) {
-    const indexFilePath = path.join(PROJECT_ROOT, 'index.html');
-    if (fs.existsSync(indexFilePath)) {
-      let content = fs.readFileSync(indexFilePath, 'utf8');
-      
-      // Update the VERSION object
-      content = content.replace(
-        /current:\s*"(\d+\.\d+\.\d+)"/g,
-        `current: "${newVersion}"`
-      );
-      
-      fs.writeFileSync(indexFilePath, content, 'utf8');
-      console.log(`Updated JS version object to ${newVersion}`);
+    if (updatedFiles.length > 0) {
+      console.log(`Updated version to ${newVersion} in: ${updatedFiles.join(', ')}`);
+    } else {
+      console.log(`Version already up to date: ${newVersion}`);
     }
+    
+    return newVersion;
   }
 
-  validateVersion(version) {
-    return /^\d+\.\d+\.\d+$/.test(version);
+  syncVersions() {
+    console.log(`Syncing all files to version ${this.currentVersion}...`);
+    return this.updateVersion(this.currentVersion);
   }
 }
 
 // Command line interface
-if (import.meta.url === `file://${process.argv[1]}`) {
+function main() {
   const manager = new VersionManager();
   const args = process.argv.slice(2);
   
-  if (args.includes('--increment-patch')) {
-    const newVersion = manager.incrementPatchVersion();
-    console.log(`Incremented patch version to ${newVersion}`);
-  } else if (args.includes('--get-version')) {
-    console.log(manager.getCurrentVersion());
-  } else if (args.includes('--set-version')) {
-    const newVersion = args[args.indexOf('--set-version') + 1];
-    if (newVersion && manager.validateVersion(newVersion)) {
-      manager.setVersion(newVersion);
-      console.log(`Set version to ${newVersion}`);
-    } else {
-      console.error('Invalid version format. Use --set-version X.Y.Z');
-      process.exit(1);
-    }
-  } else {
+  if (args.includes('--help') || args.includes('-h')) {
     console.log('Version Manager for Text Diff Tool');
     console.log('');
     console.log('Usage:');
-    console.log('  node scripts/version.js --increment-patch   Increment patch version (X.Y.Z → X.Y.Z+1)');
-    console.log('  node scripts/version.js --get-version        Get current version');
-    console.log('  node scripts/version.js --set-version X.Y.Z  Set specific version');
+    console.log('  node scripts/version.js --increment-patch   # Increment patch version (X.Y.Z → X.Y.Z+1)');
+    console.log('  node scripts/version.js --increment-minor   # Increment minor version (X.Y.Z → X.Y+1.0)');
+    console.log('  node scripts/version.js --increment-major   # Increment major version (X.Y.Z → X+1.0.0)');
+    console.log('  node scripts/version.js --get-version       # Get current version');
+    console.log('  node scripts/version.js --set-version X.Y.Z # Set specific version');
+    console.log('  node scripts/version.js --sync             # Sync all files to VERSION file');
     console.log('');
     console.log('Current version:', manager.getCurrentVersion());
+    return;
   }
+  
+  try {
+    if (args.includes('--increment-patch')) {
+      const newVersion = manager.incrementPatch();
+      console.log(`Incremented patch version to ${newVersion}`);
+    } else if (args.includes('--increment-minor')) {
+      const newVersion = manager.incrementMinor();
+      console.log(`Incremented minor version to ${newVersion}`);
+    } else if (args.includes('--increment-major')) {
+      const newVersion = manager.incrementMajor();
+      console.log(`Incremented major version to ${newVersion}`);
+    } else if (args.includes('--get-version')) {
+      console.log(manager.getCurrentVersion());
+    } else if (args.includes('--set-version')) {
+      const versionIndex = args.indexOf('--set-version') + 1;
+      const newVersion = args[versionIndex];
+      if (newVersion) {
+        manager.setVersion(newVersion);
+        console.log(`Set version to ${newVersion}`);
+      } else {
+        console.error('Error: Version required. Use --set-version X.Y.Z');
+        process.exit(1);
+      }
+    } else if (args.includes('--sync')) {
+      manager.syncVersions();
+    } else {
+      console.log('Version Manager for Text Diff Tool');
+      console.log('');
+      console.log('Usage:');
+      console.log('  node scripts/version.js --increment-patch   # Increment patch version');
+      console.log('  node scripts/version.js --increment-minor   # Increment minor version');
+      console.log('  node scripts/version.js --increment-major   # Increment major version');
+      console.log('  node scripts/version.js --get-version       # Get current version');
+      console.log('  node scripts/version.js --set-version X.Y.Z # Set specific version');
+      console.log('  node scripts/version.js --sync              # Sync all files to VERSION file');
+      console.log('  node scripts/version.js --help              # Show this help');
+      console.log('');
+      console.log('Current version:', manager.getCurrentVersion());
+    }
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
 }
 
 export { VersionManager };
