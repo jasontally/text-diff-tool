@@ -12,10 +12,10 @@
  *   node scripts/version.js --set-version 0.2.0
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+const PROJECT_ROOT = path.resolve(process.cwd());
 const VERSION_FILES = {
   'index.html': [
     { regex: /current:\s*"(\d+\.\d+\.\d+)"/g, group: 1 },
@@ -114,7 +114,7 @@ class VersionManager {
 }
 
 // Command line interface
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const manager = new VersionManager();
   const args = process.argv.slice(2);
   
@@ -144,4 +144,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = VersionManager;
+export { VersionManager };
