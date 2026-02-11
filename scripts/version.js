@@ -181,13 +181,13 @@ function main() {
   try {
     if (args.includes('--increment-patch')) {
       const newVersion = manager.incrementPatch();
-      console.log(`Incremented patch version to ${newVersion}`);
+      console.log(newVersion);
     } else if (args.includes('--increment-minor')) {
       const newVersion = manager.incrementMinor();
-      console.log(`Incremented minor version to ${newVersion}`);
+      console.log(newVersion);
     } else if (args.includes('--increment-major')) {
       const newVersion = manager.incrementMajor();
-      console.log(`Incremented major version to ${newVersion}`);
+      console.log(newVersion);
     } else if (args.includes('--get-version')) {
       console.log(manager.getCurrentVersion());
     } else if (args.includes('--set-version')) {
