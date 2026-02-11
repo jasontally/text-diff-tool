@@ -67,21 +67,27 @@
             --diff-changed-bg: #FDF6E0;
             --diff-changed-text: #B8960C;
 
-            /* Hierarchical inline highlighting - Added (Teal family) */
-            --diff-added-char-bg: #b3e6d6;      /* Darkest - Char level */
-            --diff-added-char-text: #006b4f;    /* Dark teal text */
-            --diff-added-word-bg: #c9ebe0;      /* Medium - Word level */
-            --diff-added-word-text: #008060;    /* Medium teal text */
-            --diff-added-line-bg: #E6F5F0;      /* Lightest - Line level */
-            --diff-added-line-text: #009E73;    /* Standard teal text */
+            /* Hierarchical inline highlighting - Added (Teal family)
+             * Base: #009E73/#E6F5F0 - All levels reference this color
+             * Progression: Char (darkest) → Word (medium) → Line (base)
+             */
+            --diff-added-char-bg: #99d6c4;      /* Darkest - Char level (20% darker than base) */
+            --diff-added-char-text: #006b4f;    /* Dark teal text for contrast */
+            --diff-added-word-bg: #bfead9;      /* Medium - Word level (10% darker than base) */
+            --diff-added-word-text: #008060;    /* Medium teal text for contrast */
+            --diff-added-line-bg: #E6F5F0;      /* Lightest - Line level (base background) */
+            --diff-added-line-text: #009E73;    /* Standard teal text (base foreground) */
 
-            /* Hierarchical inline highlighting - Removed (Vermillion family) */
-            --diff-removed-char-bg: #f5d4c2;    /* Darkest - Char level */
-            --diff-removed-char-text: #a04000;  /* Dark vermillion text */
-            --diff-removed-word-bg: #f7e0d4;    /* Medium - Word level */
-            --diff-removed-word-text: #b34700;  /* Medium vermillion text */
-            --diff-removed-line-bg: #FBEDE6;    /* Lightest - Line level */
-            --diff-removed-line-text: #D55E00;  /* Standard vermillion text */
+            /* Hierarchical inline highlighting - Removed (Vermillion family)
+             * Base: #D55E00/#FBEDE6 - All levels reference this color
+             * Progression: Char (darkest) → Word (medium) → Line (base)
+             */
+            --diff-removed-char-bg: #f5c4a6;    /* Darkest - Char level (20% darker than base) */
+            --diff-removed-char-text: #a04000;  /* Dark vermillion text for contrast */
+            --diff-removed-word-bg: #f8dcc9;    /* Medium - Word level (10% darker than base) */
+            --diff-removed-word-text: #c44a00;  /* Medium vermillion text for contrast */
+            --diff-removed-line-bg: #FBEDE6;    /* Lightest - Line level (base background) */
+            --diff-removed-line-text: #D55E00;  /* Standard vermillion text (base foreground) */
 
             /* Block move highlighting - Pure moves (blue family) */
             --diff-block-move-from-fg: #0072B2;    /* Blue foreground - WCAG AA compliant */
@@ -745,10 +751,10 @@
             text-decoration: line-through;
         }
 
-        /* Nested word highlighting inside comments/strings - Slightly different colors */
+        /* Nested word highlighting inside comments/strings - Uses Teal/Vermillion family */
         .inline-added-word.nested {
-            background-color: #d1f2e6; /* Lighter teal for nested */
-            color: #007a5b;
+            background-color: #bfead9; /* Uses same medium teal as word level */
+            color: #008060; /* Matches word level text */
             font-weight: 500;
             text-decoration: none;
             border-radius: 2px;
@@ -756,8 +762,8 @@
         }
 
         .inline-removed-word.nested {
-            background-color: #f9dccf; /* Lighter vermillion for nested */
-            color: #a04800;
+            background-color: #f8dcc9; /* Uses same medium vermillion as word level */
+            color: #c44a00; /* Matches word level text */
             font-weight: 500;
             text-decoration: line-through;
             border-radius: 2px;
