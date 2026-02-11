@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Testing artifacts (development only)
+test-results/
+playwright-report/
+playwright/.cache/
+coverage/
+coverage.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# Build artifacts (if any)
+dist/
+build/

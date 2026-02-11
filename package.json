@@ -1,0 +1,32 @@
+{
+  "name": "text-diff-tool",
+  "version": "1.0.0",
+  "description": "Free online text diff tool to compare code and config files. 100% private, client-side processing.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "keywords": [
+    "text-diff",
+    "code-comparison",
+    "config-compare",
+    "diff-tool",
+    "file-comparison",
+    "network-config",
+    "client-side",
+    "privacy"
+  ],
+  "author": "Jason Tally",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "axe-core": "^4.8.2",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "diff": "^8.0.3"
+  }
+}
