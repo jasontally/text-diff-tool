@@ -57,11 +57,6 @@
  * - [data-mode="lines"] - Line diff mode button
  * - [data-mode="words"] - Word diff mode button
  * - [data-mode="chars"] - Char diff mode button
- * 
- * Export Controls:
- * - #export-controls - Export buttons container
- * - #copy-btn - Copy to clipboard button
- * - #download-btn - Download patch button
  */
 
 import { test, expect } from '@playwright/test';

@@ -328,8 +328,6 @@ test.describe('Keyboard Navigation', () => {
       '#compare-btn',
       '#clear-btn',
       '#swap-btn',
-      '#copy-btn',
-      '#download-btn',
       '#prev-change-btn',
       '#next-change-btn'
     ];

@@ -35,7 +35,6 @@ diff/
     ├── file-type.test.js   # File type detection tests (future)
     └── e2e/
         ├── compare.spec.js     # E2E tests for comparison flow
-        ├── export.spec.js      # E2E tests for export features
         ├── accessibility.spec.js # E2E tests for accessibility
         └── performance.spec.js   # E2E tests for large file handling
 ```
@@ -349,8 +348,7 @@ Despite automated tests, manual testing is still recommended after changes.
 3. Click "Compare" and verify highlighting
 4. Test navigation buttons (next/previous change)
 5. Test file drag-and-drop
-6. Test export features (copy to clipboard, download .patch)
-7. Test keyboard shortcuts
+6. Test keyboard shortcuts
 
 **Development Server Options:**
 ```bash
@@ -706,9 +704,6 @@ The application uses a standardized set of `data-testid` attributes for reliable
 
 | Test Selector | Actual Selector | Description |
 |--------------|-----------------|-------------|
-| `export-controls` | `[data-testid="export-controls"]` | Export buttons container |
-| `copy-btn` | `[data-testid="copy-btn"]` | Copy to clipboard button |
-| `download-btn` | `[data-testid="download-btn"]` | Download patch button |
 
 ### Playwright Examples
 

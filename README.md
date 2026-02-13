@@ -4,7 +4,7 @@ A free, private text comparison tool for developers, network engineers, and writ
 
 **Production URL**: [https://diff.jasontally.com](https://diff.jasontally.com) - Use it instantly, no install required  
 **License**: MIT (Copyright (c) 2026 Jason Tally and contributors)  
-**Version**: 0.2.0
+**Version**: 0.2.1
 
 ---
 
@@ -97,8 +97,6 @@ npm run test:e2e
 
 ### Export and Share Results
 
-- **Copy to clipboard**: Click the copy button to get unified diff format
-- **Download .patch**: Export as standard patch file for version control
 - **Print**: Use browser print for hard copies (print-friendly stylesheet included)
 
 ### Handle Large Files
@@ -250,4 +248,4 @@ Contributions welcome! Please read the code conventions and testing guidelines i
 **Copyright (c) 2026 Jason Tally and contributors**  
 **License**: MIT (see [LICENSE](./LICENSE))
 
-Created by Jason Tally | [MIT License](./LICENSE) | Version 0.2.0
+Created by Jason Tally | [MIT License](./LICENSE) | Version 0.2.1
