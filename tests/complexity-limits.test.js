@@ -77,7 +77,7 @@ function generateChangeDenseText(lines, changeRatio = 0.5) {
 // ============================================================================
 
 describe('checkComplexityLimits', () => {
-  it('should pass for files under line limit', () => {
+  it('should pass for files under line limit', async () => {
     const oldLines = generateLines(50).split('\n');
     const newLines = generateLines(50).split('\n');
     
@@ -87,7 +87,7 @@ describe('checkComplexityLimits', () => {
     expect(result.reason).toBe(null);
   });
 
-  it('should trigger line limit for files over threshold', () => {
+  it('should trigger line limit for files over threshold', async () => {
     const oldLines = generateLines(150).split('\n');
     const newLines = generateLines(50).split('\n');
     
@@ -99,7 +99,7 @@ describe('checkComplexityLimits', () => {
     expect(result.maxLines).toBe(100);
   });
 
-  it('should trigger line limit when either file exceeds threshold', () => {
+  it('should trigger line limit when either file exceeds threshold', async () => {
     const oldLines = generateLines(50).split('\n');
     const newLines = generateLines(150).split('\n');
     
@@ -110,7 +110,7 @@ describe('checkComplexityLimits', () => {
     expect(result.lineCount).toBe(150);
   });
 
-  it('should trigger graph size limit for dense changes', () => {
+  it('should trigger graph size limit for dense changes', async () => {
     // Create predictable changes to guarantee graph size limit
     // Use 10 lines with max changes to get 10×10=100 graph size
     const oldLines = ['old1', 'old2', 'old3', 'old4', 'old5', 'old6', 'old7', 'old8', 'old9', 'old10'];
@@ -128,7 +128,7 @@ describe('checkComplexityLimits', () => {
     expect(result.addedCount).toBeGreaterThan(0);
   });
 
-  it('should calculate graph size correctly', () => {
+  it('should calculate graph size correctly', async () => {
     // Create predictable changes
     const oldLines = ['a', 'b', 'c', 'd', 'e'];
     const newLines = ['1', '2', '3', '4', '5'];
@@ -141,7 +141,7 @@ describe('checkComplexityLimits', () => {
     expect(result.addedCount).toBe(5);
   });
 
-  it('should handle edge case of exactly at line limit', () => {
+  it('should handle edge case of exactly at line limit', async () => {
     const oldLines = generateLines(100).split('\n'); // Exactly at limit
     const newLines = generateLines(100).split('\n');
     
@@ -151,7 +151,7 @@ describe('checkComplexityLimits', () => {
     expect(result.reason).toBe(null);
   });
 
-  it('should handle edge case of one line over limit', () => {
+  it('should handle edge case of one line over limit', async () => {
     const oldLines = generateLines(101).split('\n'); // One over limit
     const newLines = generateLines(100).split('\n');
     
@@ -162,7 +162,7 @@ describe('checkComplexityLimits', () => {
     expect(result.lineCount).toBe(101);
   });
 
-  it('should return complete information when limits not exceeded', () => {
+  it('should return complete information when limits not exceeded', async () => {
     const oldLines = generateLines(50).split('\n');
     const newLines = generateLines(50).split('\n');
     
@@ -182,7 +182,7 @@ describe('checkComplexityLimits', () => {
 // ============================================================================
 
 describe('runFastMode', () => {
-  it('should produce valid diff results', () => {
+  it('should produce valid diff results', async () => {
     const oldText = 'line 1\nline 2\nline 3';
     const newText = 'line 1\nmodified line 2\nline 3\nline 4';
     const limitInfo = {
@@ -192,7 +192,7 @@ describe('runFastMode', () => {
       maxLines: 100
     };
     
-    const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
+    const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
     
     expect(result.results).toBeDefined();
     expect(result.stats).toBeDefined();
@@ -200,7 +200,7 @@ describe('runFastMode', () => {
     expect(Array.isArray(result.results)).toBe(true);
   });
 
-  it('should include limitInfo with fastMode flag', () => {
+  it('should include limitInfo with fastMode flag', async () => {
     const oldText = 'line 1\nline 2';
     const newText = 'line 1\nline 2 modified';
     const limitInfo = {
@@ -210,20 +210,20 @@ describe('runFastMode', () => {
       maxGraphVertices: 500
     };
     
-    const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
+    const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
     
     expect(result.limitInfo.fastMode).toBe(true);
     expect(result.limitInfo.exceeded).toBe(true);
     expect(result.limitInfo.reason).toBe('graph_size');
   });
 
-  it('should classify changes without detailed analysis when word/char modes disabled', () => {
+  it('should classify changes without detailed analysis when word/char modes disabled', async () => {
     const oldText = 'line 1\nline 2\nline 3';
     const newText = 'line 1\nnew line 2\nline 3\nnew line 4';
     const limitInfo = { exceeded: true, reason: 'line_count' };
     const options = { modeToggles: { lines: true, words: false, chars: false } };
     
-    const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
+    const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
     
     // Should have basic classifications only (no 'modified' from similarity analysis)
     const classifications = result.results.map(r => r.classification);
@@ -237,13 +237,13 @@ describe('runFastMode', () => {
     });
   });
 
-  it('should generate word-level diffs in fast mode when words mode enabled', () => {
+  it('should generate word-level diffs in fast mode when words mode enabled', async () => {
     const oldText = 'line 1\nline 2\nline 3';
     const newText = 'line 1\nmodified line 2\nline 3';
     const limitInfo = { exceeded: true, reason: 'line_count' };
     const options = { modeToggles: { lines: true, words: true, chars: false } };
     
-    const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
+    const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
     
     // Find the modified line pair and check it has wordDiff
     const modifiedChanges = result.results.filter(r => r.classification === 'modified');
@@ -254,13 +254,13 @@ describe('runFastMode', () => {
     expect(hasWordDiff).toBe(true);
   });
 
-  it('should calculate statistics correctly', () => {
+  it('should calculate statistics correctly', async () => {
     const oldText = 'a\nb\nc';
     const newText = 'a\nx\nc\ny';
     const limitInfo = { exceeded: true, reason: 'line_count' };
     const options = { modeToggles: { lines: true, words: false, chars: false } };
     
-    const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
+    const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
     
     expect(result.stats.added).toBeGreaterThanOrEqual(1); // At least y is added
     expect(result.stats.removed).toBe(1); // b is removed
@@ -268,23 +268,23 @@ describe('runFastMode', () => {
     expect(result.stats.modified).toBe(0); // No modified classification when word mode disabled
   });
 
-  it('should handle empty files', () => {
+  it('should handle empty files', async () => {
     const oldText = '';
     const newText = 'new line';
     const limitInfo = { exceeded: true, reason: 'line_count' };
     
-    const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
+    const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
     
     expect(result.results).toBeDefined();
     expect(result.stats.added).toBe(1);
     expect(result.stats.removed).toBe(0);
   });
 
-  it('should handle identical files', () => {
+  it('should handle identical files', async () => {
     const text = 'line 1\nline 2\nline 3';
     const limitInfo = { exceeded: true, reason: 'line_count' };
     
-    const result = runFastMode(text, text, { diffLines, diffWords, diffChars }, limitInfo);
+    const result = await runFastMode(text, text, { diffLines, diffWords, diffChars }, limitInfo);
     
     expect(result.stats.added).toBe(0);
     expect(result.stats.removed).toBe(0);
@@ -297,11 +297,11 @@ describe('runFastMode', () => {
 // ============================================================================
 
 describe('runDiffPipeline Complexity Limits Integration', () => {
-  it('should use fast mode when line limit exceeded', () => {
+  it('should use fast mode when line limit exceeded', async () => {
     const oldText = generateLines(150); // Over TEST_CONFIG.MAX_LINES
     const newText = generateLines(150);
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG
     });
     
@@ -310,13 +310,13 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     expect(result.limitInfo.reason).toBe('line_count');
   });
 
-  it('should use fast mode when graph size limit exceeded', () => {
+  it('should use fast mode when graph size limit exceeded', async () => {
     // Create predictable changes to guarantee graph size limit
     // Use 5 lines with max changes to get 5×5=25 graph size
     const oldText = 'old1\nold2\nold3\nold4\nold5';
     const newText = 'new1\nnew2\nnew3\nnew4\nnew5';
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: {
         MAX_LINES: 10,  // Above 5 lines
         MAX_GRAPH_VERTICES: 20,  // Below expected graph size of 25
@@ -329,11 +329,11 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     expect(result.limitInfo.reason).toBe('graph_size');
   });
 
-  it('should use normal mode when limits not exceeded', () => {
+  it('should use normal mode when limits not exceeded', async () => {
     const oldText = generateLines(50); // Under TEST_CONFIG.MAX_LINES
     const newText = generateLines(50);
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG
     });
     
@@ -342,11 +342,11 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     expect(result.limitInfo.reason).toBe(null);
   });
 
-  it('should produce valid results under fast mode', () => {
+  it('should produce valid results under fast mode', async () => {
     const oldText = generateLines(150);
     const newText = generateLines(150).replace(/line 50/, 'modified line 50');
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG
     });
     
@@ -359,11 +359,11 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     expect(classifications.every(c => ['added', 'removed', 'unchanged', 'modified'].includes(c))).toBe(true);
   });
 
-  it('should include correct limitInfo in results', () => {
+  it('should include correct limitInfo in results', async () => {
     const oldText = generateLines(150);
     const newText = generateLines(150);
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG
     });
     
@@ -377,11 +377,11 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     });
   });
 
-  it('should handle exact boundary at line limit', () => {
+  it('should handle exact boundary at line limit', async () => {
     const oldText = generateLines(100); // Exactly at limit
     const newText = generateLines(100);
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG
     });
     
@@ -389,11 +389,11 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     expect(result.limitInfo.fastMode).toBe(false);
   });
 
-  it('should handle single line over limit', () => {
+  it('should handle single line over limit', async () => {
     const oldText = generateLines(101); // One over limit
     const newText = generateLines(100);
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG
     });
     
@@ -403,12 +403,12 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     expect(result.limitInfo.lineCount).toBe(101);
   });
 
-  it('should handle very large files gracefully', () => {
+  it('should handle very large files gracefully', async () => {
     const oldText = generateLines(1000); // Way over limit
     const newText = generateLines(1000);
     
     const start = performance.now();
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG
     });
     const duration = performance.now() - start;
@@ -418,7 +418,7 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     expect(duration).toBeLessThan(1000); // Should complete quickly in fast mode
   });
 
-  it('should respect ENABLE_FAST_MODE setting', () => {
+  it('should respect ENABLE_FAST_MODE setting', async () => {
     const oldText = generateLines(150);
     const newText = generateLines(150);
     
@@ -428,7 +428,7 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
     };
     
     // Should not use fast mode even when limits exceeded
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: configWithFastModeDisabled
     });
     
@@ -444,7 +444,7 @@ describe('runDiffPipeline Complexity Limits Integration', () => {
 // ============================================================================
 
 describe('Complexity Limits Edge Cases', () => {
-  it('should handle empty files', () => {
+  it('should handle empty files', async () => {
     const oldLines = [''];
     const newLines = [''];
     
@@ -454,7 +454,7 @@ describe('Complexity Limits Edge Cases', () => {
     expect(result.graphSize).toBe(0);
   });
 
-  it('should handle single line files', () => {
+  it('should handle single line files', async () => {
     const oldLines = ['single line'];
     const newLines = ['single line'];
     
@@ -464,7 +464,7 @@ describe('Complexity Limits Edge Cases', () => {
     expect(result.graphSize).toBe(0);
   });
 
-  it('should handle files with only additions', () => {
+  it('should handle files with only additions', async () => {
     const oldLines = [''];
     const newLines = generateLines(50).split('\n');
     
@@ -477,7 +477,7 @@ describe('Complexity Limits Edge Cases', () => {
     expect(result.addedCount).toBe(50);
   });
 
-  it('should handle files with only removals', () => {
+  it('should handle files with only removals', async () => {
     const oldLines = generateLines(50).split('\n');
     const newLines = [''];
     
@@ -490,7 +490,7 @@ describe('Complexity Limits Edge Cases', () => {
     expect(result.addedCount).toBe(0);
   });
 
-  it('should calculate graph size correctly for mixed changes', () => {
+  it('should calculate graph size correctly for mixed changes', async () => {
     const oldText = 'a\nb\nc'; // 3 lines
     const newText = 'x\ny\nz\nw'; // 4 lines, all different
     
@@ -506,7 +506,7 @@ describe('Complexity Limits Edge Cases', () => {
     expect(result.graphSize).toBe(12); // 3 × 4
   });
 
-  it('should handle configuration overrides', () => {
+  it('should handle configuration overrides', async () => {
     const oldLines = generateLines(150).split('\n');
     const newLines = generateLines(150).split('\n');
     
@@ -528,7 +528,7 @@ describe('Complexity Limits Edge Cases', () => {
 // ============================================================================
 
 describe('Complexity Limits Performance', () => {
-  it('should complete limit checking quickly for large files', () => {
+  it('should complete limit checking quickly for large files', async () => {
     const oldLines = generateLines(60000).split('\n'); // Over default MAX_LINES of 50000
     const newLines = generateLines(60000).split('\n');
     
@@ -541,13 +541,13 @@ describe('Complexity Limits Performance', () => {
     expect(result.reason).toBe('line_count');
   });
 
-  it('should complete fast mode quickly', () => {
+  it('should complete fast mode quickly', async () => {
     const oldText = generateLines(1000);
     const newText = generateLines(1000);
     const limitInfo = { exceeded: true, reason: 'line_count' };
     
     const start = performance.now();
-    const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
+    const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo);
     const duration = performance.now() - start;
     
     expect(duration).toBeLessThan(500); // Should complete quickly

@@ -30,22 +30,22 @@ const TEST_CONFIG_DISABLED = {
 
 describe('Fast Mode Behavior - Small Files', () => {
   describe('Files under complexity limits', () => {
-    it('should NOT use fast mode for files under 100 lines with default config', () => {
+    it('should NOT use fast mode for files under 100 lines with default config', async () => {
       const oldText = 'line 1\nline 2\nline 3\nline 4\nline 5';
       const newText = 'line 1\nmodified line 2\nline 3\nline 4\nline 5';
       
-      const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars });
+      const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars });
       
       expect(result.limitInfo.exceeded).toBe(false);
       expect(result.limitInfo.fastMode).toBe(false);
       expect(result.limitInfo.reason).toBeNull();
     });
 
-    it('should NOT use fast mode for 99 lines (under the limit)', () => {
+    it('should NOT use fast mode for 99 lines (under the limit)', async () => {
       const oldText = Array(99).fill(null).map((_, i) => `content line ${i}`).join('\n');
       const newText = Array(99).fill(null).map((_, i) => `content line ${i}`).join('\n');
       
-      const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+      const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
         config: TEST_CONFIG_ENABLED
       });
       
@@ -54,11 +54,11 @@ describe('Fast Mode Behavior - Small Files', () => {
       expect(result.limitInfo.reason).toBeNull();
     });
 
-    it('should produce detailed word diffs for small files', () => {
+    it('should produce detailed word diffs for small files', async () => {
       const oldText = 'const x = 1;\nconst y = 2;';
       const newText = 'const x = 5;\nconst y = 2;';
       
-      const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+      const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
         config: TEST_CONFIG_ENABLED,
         modeToggles: { lines: true, words: true, chars: true }
       });
@@ -77,11 +77,11 @@ describe('Fast Mode Behavior - Small Files', () => {
   });
 
   describe('Fast mode trigger conditions', () => {
-    it('should use fast mode when exceeding MAX_LINES limit', () => {
+    it('should use fast mode when exceeding MAX_LINES limit', async () => {
       const oldText = Array(101).fill(null).map((_, i) => `line ${i}`).join('\n');
       const newText = Array(101).fill(null).map((_, i) => `modified line ${i}`).join('\n');
       
-      const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+      const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
         config: TEST_CONFIG_ENABLED
       });
       
@@ -90,12 +90,12 @@ describe('Fast Mode Behavior - Small Files', () => {
       expect(result.limitInfo.reason).toBe('line_count');
     });
 
-    it('should use fast mode when exceeding MAX_GRAPH_VERTICES limit', () => {
+    it('should use fast mode when exceeding MAX_GRAPH_VERTICES limit', async () => {
       // Create 32 lines that all change to get 32×32=1024 graph vertices
       const oldLines = Array(32).fill(null).map((_, i) => `old content ${i}`);
       const newLines = Array(32).fill(null).map((_, i) => `new content ${i}`);
       
-      const result = runDiffPipeline(oldLines.join('\n'), newLines.join('\n'), 
+      const result = await runDiffPipeline(oldLines.join('\n'), newLines.join('\n'), 
         { diffLines, diffWords, diffChars }, {
           config: {
             ...TEST_CONFIG_ENABLED,
@@ -110,11 +110,11 @@ describe('Fast Mode Behavior - Small Files', () => {
   });
 
   describe('ENABLE_FAST_MODE setting', () => {
-    it('should respect ENABLE_FAST_MODE=false even when limits exceeded', () => {
+    it('should respect ENABLE_FAST_MODE=false even when limits exceeded', async () => {
       const oldText = Array(200).fill(null).map((_, i) => `line ${i}`).join('\n');
       const newText = Array(200).fill(null).map((_, i) => `modified ${i}`).join('\n');
       
-      const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+      const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
         config: TEST_CONFIG_DISABLED
       });
       
@@ -123,11 +123,11 @@ describe('Fast Mode Behavior - Small Files', () => {
       expect(result.limitInfo.fastMode).toBe(false);
     });
 
-    it('should use fast mode when ENABLE_FAST_MODE=true and limits exceeded', () => {
+    it('should use fast mode when ENABLE_FAST_MODE=true and limits exceeded', async () => {
       const oldText = Array(200).fill(null).map((_, i) => `line ${i}`).join('\n');
       const newText = Array(200).fill(null).map((_, i) => `modified ${i}`).join('\n');
       
-      const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+      const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
         config: TEST_CONFIG_ENABLED
       });
       
@@ -137,13 +137,13 @@ describe('Fast Mode Behavior - Small Files', () => {
   });
 
   describe('Fast mode word diff generation', () => {
-    it('should generate word diffs in fast mode when words mode enabled', () => {
+    it('should generate word diffs in fast mode when words mode enabled', async () => {
       const oldText = 'line 1\nline 2\nline 3';
       const newText = 'line 1\nmodified line 2\nline 3';
       const limitInfo = { exceeded: true, reason: 'line_count' };
       const options = { modeToggles: { lines: true, words: true, chars: false } };
       
-      const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
+      const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
       
       // Should be in fast mode
       expect(result.limitInfo.fastMode).toBe(true);
@@ -156,13 +156,13 @@ describe('Fast Mode Behavior - Small Files', () => {
       expect(hasWordDiff).toBe(true);
     });
 
-    it('should NOT generate word diffs in fast mode when words mode disabled', () => {
+    it('should NOT generate word diffs in fast mode when words mode disabled', async () => {
       const oldText = 'line 1\nline 2\nline 3';
       const newText = 'line 1\nmodified line 2\nline 3';
       const limitInfo = { exceeded: true, reason: 'line_count' };
       const options = { modeToggles: { lines: true, words: false, chars: false } };
       
-      const result = runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
+      const result = await runFastMode(oldText, newText, { diffLines, diffWords, diffChars }, limitInfo, options);
       
       expect(result.limitInfo.fastMode).toBe(true);
       
@@ -175,15 +175,15 @@ describe('Fast Mode Behavior - Small Files', () => {
 });
 
 describe('Production Config Limits', () => {
-  it('should have MAX_LINES set to 50000 in production config', () => {
+  it('should have MAX_LINES set to 50000 in production config', async () => {
     expect(CONFIG.MAX_LINES).toBe(50000);
   });
 
-  it('should have MAX_GRAPH_VERTICES set to 100000 in production config', () => {
+  it('should have MAX_GRAPH_VERTICES set to 100000 in production config', async () => {
     expect(CONFIG.MAX_GRAPH_VERTICES).toBe(100000);
   });
 
-  it('should have ENABLE_FAST_MODE set to true in production config', () => {
+  it('should have ENABLE_FAST_MODE set to true in production config', async () => {
     expect(CONFIG.ENABLE_FAST_MODE).toBe(true);
   });
 });

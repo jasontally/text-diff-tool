@@ -52,9 +52,9 @@ def process_data(data, factor=1.5):
 # Initial call
 process_data([10, 20, 30])`;
 
-  it('should detect function signature modification in context', () => {
+  it('should detect function signature modification in context', async () => {
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars, {
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars, {
       modifiedThreshold: CONFIG.MODIFIED_THRESHOLD,
       fastThreshold: CONFIG.FAST_THRESHOLD
     });
@@ -95,14 +95,14 @@ process_data([10, 20, 30])`;
     expect(enhancedSim).toBeGreaterThan(0.60);
   });
 
-  it('should properly pair function lines in change block', () => {
+  it('should properly pair function lines in change block', async () => {
     const rawDiff = diffLines(oldText, newText);
     const blocks = identifyChangeBlocks(rawDiff);
 
     console.log('Number of blocks:', blocks.length);
     
-    blocks.forEach((block, idx) => {
-      console.log(`\nBlock ${idx + 1}:`);
+    for (const block of blocks) {
+      console.log(`\nBlock:`);
       console.log(`  Removed: ${block.removed.length}`);
       block.removed.forEach((r, i) => {
         console.log(`    [${i}] ${r.line.substring(0, 60)}`);
@@ -119,7 +119,7 @@ process_data([10, 20, 30])`;
           console.log(`    Removed[${r}]: ${row.map(s => s.toFixed(2)).join(', ')}`);
         });
 
-        const pairings = findOptimalPairings(
+        const pairings = await findOptimalPairings(
           block, 
           matrix, 
           diffWords, 
@@ -138,6 +138,6 @@ process_data([10, 20, 30])`;
         );
         expect(hasModification).toBe(true);
       }
-    });
+    }
   });
 });

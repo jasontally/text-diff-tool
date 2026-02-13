@@ -2,7 +2,7 @@ import { test, expect } from 'vitest';
 import { runDiffPipeline, detectMovesInUnchangedLines } from '../src/diff-algorithms.js';
 import { diffLines } from 'diff';
 
-test('Check full function block detection', () => {
+test('Check full function block detection', async () => {
   const original = `line 1
 line 2
 function movedFunction() {
@@ -43,7 +43,7 @@ function movedFunction() {
   });
 
   // Run pipeline
-  const result = runDiffPipeline(original, modified, { diffLines, diffWords: null, diffChars: null }, {
+  const result = await runDiffPipeline(original, modified, { diffLines, diffWords: null, diffChars: null }, {
     detectMoves: true
   });
 

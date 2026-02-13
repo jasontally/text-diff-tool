@@ -50,7 +50,7 @@ function applyFilters(text, filterOptions = {}) {
 // ============================================================================
 
 export const CONFIG = {
-  MODIFIED_THRESHOLD: 0.60,      // 60% similarity to classify as "modified"
+  MODIFIED_THRESHOLD: 0.50,      // 50% similarity to classify as "modified" (Git standard)
   MOVE_THRESHOLD: 0.90,          // 90% similarity for move detection
   FAST_THRESHOLD: 0.30,          // Minimum signature similarity for full diff
   SIGNATURE_BITS: 32,            // Number of bits for SimHash signatures
@@ -612,6 +612,8 @@ export function detectMovesInUnchangedLines(diffResults, oldText, newText) {
         currentBlock.added.push({ line: entry.line, index: entry.diffIndex });
         currentBlock.endDiffIndex = entry.diffIndex;
         currentBlock.expectedNewIndex = entry.newIndex + 1;
+        currentBlock.oldLinePositions.push(entry.oldIndex);
+        currentBlock.newLinePositions.push(entry.newIndex);
       } else {
         // Start new block
         if (currentBlock && currentBlock.removed.length >= 3) {
@@ -623,7 +625,9 @@ export function detectMovesInUnchangedLines(diffResults, oldText, newText) {
           startDiffIndex: entry.diffIndex,
           endDiffIndex: entry.diffIndex,
           expectedNewIndex: entry.newIndex + 1,
-          isVirtualMoveBlock: true
+          isVirtualMoveBlock: true,
+          oldLinePositions: [entry.oldIndex],
+          newLinePositions: [entry.newIndex]
         };
       }
     } else {
@@ -852,7 +856,7 @@ export function buildOptimizedSimilarityMatrix(block, diffWords, fastThreshold =
  * @param {string} language - Detected programming language
  * @returns {Array} Array of pairing objects with type, indices, and diffs
  */
-export function findOptimalPairings(
+export async function findOptimalPairings(
   block, 
   matrix, 
   diffWords, 
@@ -893,8 +897,15 @@ export function findOptimalPairings(
     // Determine classification based on similarity
     const isModified = pairing.similarity >= modifiedThreshold;
     
+    // Only pair lines if they meet the modified threshold
+    // Lines with similarity below threshold should remain unpaired
+    // and be treated as separate added/removed
+    if (!isModified) {
+      continue; // Skip pairing - let these become pure add/remove
+    }
+    
     const result = {
-      type: isModified ? 'modified' : 'modified', // Always treat as modified for pairing
+      type: 'modified',
       removedIndex: pairing.removedIndex,
       addedIndex: pairing.addedIndex,
       removedLine: pairing.removedLine,
@@ -912,9 +923,9 @@ export function findOptimalPairings(
       result.charDiff = diffChars(pairing.removedLine, pairing.addedLine);
     }
     
-    // Compute nested diffs for comment/string regions
+    // Compute nested diffs for comment/string regions (async)
     if (modeToggles.words && language) {
-      computeNestedDiffs(result, diffWords, language);
+      await computeNestedDiffs(result, diffWords, language);
     }
     
     pairings.push(result);
@@ -961,10 +972,12 @@ export function findOptimalPairings(
  * @param {Function} diffWords - The diffWords function from the 'diff' library
  * @param {string} language - Programming language for context
  */
-function computeNestedDiffs(pairing, diffWords, language) {
-  // Detect regions in both lines
-  const removedRegions = detectRegions(pairing.removedLine, language);
-  const addedRegions = detectRegions(pairing.addedLine, language);
+async function computeNestedDiffs(pairing, diffWords, language) {
+  // Detect regions in both lines (async)
+  const [removedRegions, addedRegions] = await Promise.all([
+    detectRegions(pairing.removedLine, language),
+    detectRegions(pairing.addedLine, language)
+  ]);
   
   // Only process if both have comment/string regions
   const hasRegions = removedRegions.some(r => r.type !== REGION_TYPES.CODE) ||
@@ -1021,7 +1034,7 @@ function computeNestedDiffs(pairing, diffWords, language) {
  * @param {Object} options - Configuration options
  * @returns {Array} Results with 'added', 'removed', 'modified', or 'unchanged' classification
  */
-export function detectModifiedLines(diffResults, diffWords, diffChars, options = {}, oldText = '', newText = '') {
+export async function detectModifiedLines(diffResults, diffWords, diffChars, options = {}, oldText = '', newText = '') {
   const blocks = identifyChangeBlocks(diffResults);
   const allPairings = [];
   const modeToggles = options.modeToggles || { lines: true, words: true, chars: true };
@@ -1033,7 +1046,7 @@ export function detectModifiedLines(diffResults, diffWords, diffChars, options =
       diffWords, 
       options.fastThreshold || CONFIG.FAST_THRESHOLD
     );
-    const pairings = findOptimalPairings(
+    const pairings = await findOptimalPairings(
       block, 
       matrix, 
       diffWords, 
@@ -1145,12 +1158,16 @@ export function detectModifiedLines(diffResults, diffWords, diffChars, options =
       
       if (!willBeBlockMoved) {
         const move = moves.get(index);
-        return {
-          ...change,
-          index: index,
-          classification: 'moved',
-          moveDestination: move.toIndex
-        };
+        // Only classify as 'moved' if the line actually changed position
+        // If fromIndex === toIndex, it's not a move, it's unchanged
+        if (move.toIndex !== index) {
+          return {
+            ...change,
+            index: index,
+            classification: 'moved',
+            moveDestination: move.toIndex
+          };
+        }
       }
     }
     
@@ -1172,40 +1189,69 @@ export function detectModifiedLines(diffResults, diffWords, diffChars, options =
       const isVirtualBlock = blockMove.from === blockMove.to;
       
       if (isVirtualBlock) {
-        // For virtual blocks, match by content since indices may have changed
-        // The blockMove.content array contains the actual lines
-        const firstLine = blockMove.content?.[0];
+        // For virtual blocks (where from === to), check if content actually moved position
+        // If we can't determine that it moved, skip processing to avoid false positives
+        const oldPositions = blockMove.oldLinePositions;
+        const newPositions = blockMove.newLinePositions;
+        const fromLineNum = blockMove.fromLineNumber;
+        const toLineNum = blockMove.toLineNumber;
         
-        if (firstLine) {
-          // Find an entry that contains this content (could be added, unchanged, etc.)
-          const matchingEntry = classified.find(c => 
-            c.value && c.value.includes(firstLine.substring(0, 40))
-          );
+        // Determine if content actually moved
+        // Default to NOT processing unless we have evidence it moved
+        let actuallyMoved = false;
+        
+        // Check using position arrays from detectMovesInUnchangedLines
+        if (oldPositions && newPositions && oldPositions.length > 0) {
+          actuallyMoved = oldPositions.some((oldPos, i) => oldPos !== newPositions[i]);
+        }
+        // Check using line numbers from block move detector
+        else if (fromLineNum !== undefined && toLineNum !== undefined) {
+          actuallyMoved = fromLineNum !== toLineNum;
+        }
+        
+        // Only process if we have evidence the content actually moved
+        if (actuallyMoved) {
+          // For virtual blocks, match by content since indices may have changed
+          // The blockMove.content array contains the actual lines
+          const firstLine = blockMove.content?.[0];
           
-          if (matchingEntry) {
-            // Mark as destination (where the content appears in the new file)
-            matchingEntry.classification = 'block-moved';
-            matchingEntry.blockMoveDestination = blockMove.to;
-            matchingEntry.blockMoveSource = undefined;
-            matchingEntry.blockMoveInfo = blockMove;
-            matchingEntry.added = true;
-            matchingEntry.removed = false;
-            matchingEntry._wasUnchangedButMoved = true;
+          if (firstLine) {
+            // Find an entry that contains this content (could be added, unchanged, etc.)
+            const matchingEntry = classified.find(c => 
+              c.value && c.value.includes(firstLine.substring(0, 40))
+            );
             
-            // Create source entry for the old position
-            const sourceEntry = {
-              ...matchingEntry,
-              index: blockMove.from,
-              added: false,
-              removed: true,
-              blockMoveSource: blockMove.from,
-              blockMoveDestination: undefined,
-              _isVirtualSource: true
-            };
-            
-            // Insert source entry at the beginning of classified array
-            // (virtual block sources should appear before their destinations)
-            classified.unshift(sourceEntry);
+            if (matchingEntry) {
+              // Mark as destination (where the content appears in the new file)
+              matchingEntry.classification = 'block-moved';
+              matchingEntry.blockMoveDestination = blockMove.to;
+              matchingEntry.blockMoveSource = undefined;
+              matchingEntry.blockMoveInfo = blockMove;
+              matchingEntry.added = true;
+              matchingEntry.removed = false;
+              matchingEntry._wasUnchangedButMoved = true;
+              
+              // Create source entry for the old position
+              const sourceEntry = {
+                ...matchingEntry,
+                index: blockMove.from,
+                added: false,
+                removed: true,
+                blockMoveSource: blockMove.from,
+                blockMoveDestination: undefined,
+                _isVirtualSource: true
+              };
+              
+              // Insert source entry at the correct position in the array
+              // Find the insertion point based on the original line position
+              const insertIndex = classified.findIndex(c => c.index >= blockMove.from);
+              if (insertIndex >= 0) {
+                classified.splice(insertIndex, 0, sourceEntry);
+              } else {
+                // If no appropriate position found, append to end
+                classified.push(sourceEntry);
+              }
+            }
           }
         }
       } else {
@@ -1563,7 +1609,7 @@ export function normalizeWhitespace(text) {
  * @param {Object} options - Options for processing
  * @returns {Array} Classified diff results for this region
  */
-export function processChangedRegion(region, diffLib, options = {}) {
+export async function processChangedRegion(region, diffLib, options = {}) {
   const { diffLines, diffWords, diffChars } = diffLib;
   const { modeToggles = { lines: true, words: true, chars: true } } = options;
   const language = options.language || null;
@@ -1607,8 +1653,8 @@ export function processChangedRegion(region, diffLib, options = {}) {
   // Post-process to fix diffLines classification bug
   const fixedResults = fixDiffLinesClassification(rawResults, oldText);
   
-  // Run modified line detection pipeline
-  const classified = detectModifiedLines(fixedResults, diffWords, diffChars, {
+  // Run modified line detection pipeline (async)
+  const classified = await detectModifiedLines(fixedResults, diffWords, diffChars, {
     detectMoves: options.detectMoves,
     fastThreshold: options.fastThreshold,
     modifiedThreshold: options.modifiedThreshold,
@@ -1923,7 +1969,7 @@ export function checkComplexityLimits(oldLines, newLines, diffLib, config = CONF
  * @param {Object} options - Configuration options
  * @returns {Object} Simplified diff results with limit status
  */
-export function runFastMode(oldText, newText, diffLib, limitInfo, options = {}) {
+export async function runFastMode(oldText, newText, diffLib, limitInfo, options = {}) {
   const { diffLines, diffWords, diffChars } = diffLib;
   
   // Get mode toggles (default all enabled)
@@ -2018,7 +2064,7 @@ export function runFastMode(oldText, newText, diffLib, limitInfo, options = {}) 
  * @param {Object} options.config - Override default CONFIG values for limits
  * @returns {Object} Object containing results array, stats, and limit status
  */
-export function runDiffPipeline(oldText, newText, diffLib, options = {}) {
+export async function runDiffPipeline(oldText, newText, diffLib, options = {}) {
   const { diffLines, diffWords, diffChars } = diffLib;
   
   // Clear content hash cache before starting new diff operation
@@ -2047,8 +2093,8 @@ export function runDiffPipeline(oldText, newText, diffLib, options = {}) {
     const enableFastMode = config.ENABLE_FAST_MODE !== false && config.enableFastMode !== false;
     
     if (limitCheck.exceeded && enableFastMode) {
-      // Fall back to fast mode
-      const fastResult = runFastMode(processedOldText, processedNewText, diffLib, limitCheck, options);
+      // Fall back to fast mode (async)
+      const fastResult = await runFastMode(processedOldText, processedNewText, diffLib, limitCheck, options);
       
       // Add debug info if requested
       if (options?.debug) {
@@ -2072,10 +2118,10 @@ export function runDiffPipeline(oldText, newText, diffLib, options = {}) {
     
     // For small files or when disabled, use single-pass mode
     if (!useTwoPass) {
-      result = runSinglePassDiff(processedOldText, processedNewText, diffLib, options, modeToggles);
+      result = await runSinglePassDiff(processedOldText, processedNewText, diffLib, options, modeToggles);
     } else {
-      // Two-pass diff mode
-      result = runTwoPassDiff(oldLines, newLines, diffLib, options, modeToggles);
+      // Two-pass diff mode (async)
+      result = await runTwoPassDiff(oldLines, newLines, diffLib, options, modeToggles);
     }
     
     // Include limit info (limits not exceeded)
@@ -2109,7 +2155,7 @@ export function runDiffPipeline(oldText, newText, diffLib, options = {}) {
  * @param {Object} modeToggles - Mode toggles
  * @returns {Object} Diff results and stats
  */
-function runSinglePassDiff(processedOldText, processedNewText, diffLib, options, modeToggles) {
+async function runSinglePassDiff(processedOldText, processedNewText, diffLib, options, modeToggles) {
   const { diffLines, diffWords, diffChars } = diffLib;
   
   // Detect language for nested diff processing
@@ -2127,9 +2173,9 @@ function runSinglePassDiff(processedOldText, processedNewText, diffLib, options,
   // Post-process to fix diffLines classification bug (v5.1.0)
   const results = fixDiffLinesClassification(rawResults, processedOldText);
 
-  // Run modified line detection pipeline with mode toggles
+  // Run modified line detection pipeline with mode toggles (async)
   // Pass virtual blocks so they can be included in move detection
-  const classified = detectModifiedLines(results, diffWords, diffChars, {
+  const classified = await detectModifiedLines(results, diffWords, diffChars, {
     detectMoves: options?.detectMoves,
     fastThreshold: options?.fastThreshold,
     modifiedThreshold: options?.modifiedThreshold,
@@ -2193,7 +2239,7 @@ function runSinglePassDiff(processedOldText, processedNewText, diffLib, options,
  * @param {Object} modeToggles - Mode toggles
  * @returns {Object} Diff results and stats
  */
-function runTwoPassDiff(oldLines, newLines, diffLib, options, modeToggles) {
+async function runTwoPassDiff(oldLines, newLines, diffLib, options, modeToggles) {
   // Detect language for nested diff processing
   const language = detectCommonLanguage(oldLines.join('\n'), newLines.join('\n'));
   
@@ -2214,7 +2260,7 @@ function runTwoPassDiff(oldLines, newLines, diffLib, options, modeToggles) {
   if (unchangedMarkers.length === 0 || unchangedRatio < minUnchangedThreshold) {
     const oldText = oldLines.join('\n');
     const newText = newLines.join('\n');
-    const result = runSinglePassDiff(oldText, newText, diffLib, options, modeToggles);
+    const result = await runSinglePassDiff(oldText, newText, diffLib, options, modeToggles);
     
     if (options?.debug) {
       result.twoPassInfo = {
@@ -2252,19 +2298,18 @@ function runTwoPassDiff(oldLines, newLines, diffLib, options, modeToggles) {
     };
   }
   
-  // Pass 2: Process each changed region
-  const regionResults = [];
-  for (const region of regions) {
-    const regionDiff = processChangedRegion(region, diffLib, {
+  // Pass 2: Process each changed region (async)
+  const regionPromises = regions.map(region => 
+    processChangedRegion(region, diffLib, {
       detectMoves: options?.detectMoves,
       fastThreshold: options?.fastThreshold,
       modifiedThreshold: options?.modifiedThreshold,
       modeToggles,
       language,
       normalizeDelimiters: options?.normalizeDelimiters
-    });
-    regionResults.push(regionDiff);
-  }
+    })
+  );
+  const regionResults = await Promise.all(regionPromises);
   
   // Merge unchanged markers with processed regions
   const mergedResults = mergeTwoPassResults(

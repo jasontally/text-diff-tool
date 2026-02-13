@@ -3,7 +3,7 @@ import { runDiffPipeline, detectModifiedLines, detectMovesInUnchangedLines, iden
 import { diffLines, diffWords, diffChars } from 'diff';
 import { detectBlockMovesFast } from '../src/block-move-detector.js';
 
-test('Debug: Trace block move detection step by step', () => {
+test('Debug: Trace block move detection step by step', async () => {
   const original = `line 1
 line 2
 function movedFunction() {
@@ -73,7 +73,7 @@ function movedFunction() {
   });
 
   // Step 6: Run full detectModifiedLines
-  const classified = detectModifiedLines(diffResults, diffWords, diffChars, {
+  const classified = await detectModifiedLines(diffResults, diffWords, diffChars, {
     detectMoves: true,
     modeToggles: { lines: true, words: true, chars: true }
   }, original, modified);
@@ -87,7 +87,7 @@ function movedFunction() {
   console.log('\nBlock-moved count:', blockMovedCount);
   
   // Step 7: Full pipeline
-  const pipelineResult = runDiffPipeline(original, modified, { diffLines, diffWords, diffChars }, {
+  const pipelineResult = await runDiffPipeline(original, modified, { diffLines, diffWords, diffChars }, {
     detectMoves: true,
     modeToggles: { lines: true, words: true, chars: true }
   });

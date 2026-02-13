@@ -236,16 +236,31 @@ export function detectBlockMoves(oldLines, newLines, options = {}) {
     const filteredBlocks = filterOverlappingBlocks(scoredBlocks, maxBlocksReturned, tracker);
     
     // Convert to final format
-    const blocks = filteredBlocks.map(block => ({
-      type: 'block-moved',
-      from: oldLines[block.removedStart].index,
-      to: newLines[block.addedStart].index,
-      size: block.size,
-      similarity: block.similarity,
-      fromBlock: oldLines[block.removedStart]?.blockIdx ?? 0,
-      toBlock: newLines[block.addedStart]?.blockIdx ?? 0,
-      content: block.removedLines.map(l => l.line)
-    }));
+    // Include original line positions to detect if content actually moved
+    const blocks = filteredBlocks.map(block => {
+      const fromLine = oldLines[block.removedStart];
+      const toLine = newLines[block.addedStart];
+      
+      // Get the original block to check for position arrays
+      const originalBlock = fromLine?._originalBlock;
+      
+      return {
+        type: 'block-moved',
+        from: fromLine.index,
+        to: toLine.index,
+        size: block.size,
+        similarity: block.similarity,
+        fromBlock: fromLine?.blockIdx ?? 0,
+        toBlock: toLine?.blockIdx ?? 0,
+        content: block.removedLines.map(l => l.line),
+        // Track actual line positions to detect if content moved
+        fromLineNumber: fromLine?.lineNumber ?? fromLine.index,
+        toLineNumber: toLine?.lineNumber ?? toLine.index,
+        // Preserve position arrays from virtual blocks if available
+        oldLinePositions: originalBlock?.oldLinePositions,
+        newLinePositions: originalBlock?.newLinePositions
+      };
+    });
     
     const stats = tracker.getStats();
     
@@ -537,7 +552,8 @@ export function detectBlockMovesFast(
       allRemoved.push({
         ...r,
         blockIdx,
-        localIdx
+        localIdx,
+        _originalBlock: block  // Keep reference to original block for position info
       });
     });
     
@@ -545,7 +561,8 @@ export function detectBlockMovesFast(
       allAdded.push({
         ...a,
         blockIdx,
-        localIdx
+        localIdx,
+        _originalBlock: block  // Keep reference to original block for position info
       });
     });
   });

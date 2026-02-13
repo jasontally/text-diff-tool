@@ -79,7 +79,7 @@ self.onmessage = async function(e) {
       config: options.config || undefined
     };
     
-    const result = runDiffPipeline(oldText, newText, diffLib, pipelineOptions);
+    const result = await runDiffPipeline(oldText, newText, diffLib, pipelineOptions);
     
     self.postMessage({ 
       type: 'complete', 

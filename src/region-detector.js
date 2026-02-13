@@ -9,6 +9,12 @@
  */
 
 // ============================================================================
+// Tree-sitter Integration
+// ============================================================================
+
+import { isTreeSitterAvailable, getLanguageParser, isLanguageSupported } from './tree-sitter-loader.js';
+
+// ============================================================================
 // Region Types
 // ============================================================================
 
@@ -286,36 +292,173 @@ const LANGUAGE_CONFIGS = {
 };
 
 // ============================================================================
-// Tree-sitter Integration
+// Tree-sitter Region Detection
 // ============================================================================
-
-/**
- * Check if tree-sitter is available
- * @returns {boolean} True if tree-sitter can be used
- */
-export function isTreeSitterAvailable() {
-  // In a real implementation, this would check for tree-sitter module
-  // For now, we'll use a placeholder that returns false
-  // The actual tree-sitter integration can be added later
-  return false;
-}
 
 /**
  * Detect regions using tree-sitter parsing
  * @param {string} line - The line to analyze
  * @param {string} language - The language identifier
- * @returns {Array<Object>} Array of regions with type and positions
+ * @returns {Promise<Array<Object>>} Array of regions with type and positions
  */
-export function detectWithTreeSitter(line, language) {
-  // Placeholder for tree-sitter implementation
-  // In a real implementation, this would:
-  // 1. Load the appropriate tree-sitter parser for the language
-  // 2. Parse the line to get syntax tree
-  // 3. Walk the tree to identify comment and string nodes
-  // 4. Return regions with accurate positions
+async function detectWithTreeSitter(line, language) {
+  try {
+    // Get parser for the language
+    const parser = await getLanguageParser(language);
+    if (!parser) {
+      return null;
+    }
+    
+    // Parse the line
+    const tree = parser.parse(line);
+    if (!tree) {
+      return null;
+    }
+    
+    // Walk the tree to find comment and string nodes
+    const regions = [];
+    const cursor = tree.walk();
+    
+    // Traverse the tree
+    function traverse() {
+      const node = cursor.currentNode;
+      const nodeType = node.type;
+      
+      // Check if node is a comment or string
+      const regionType = getTreeSitterNodeType(nodeType, language);
+      if (regionType) {
+        regions.push({
+          type: regionType,
+          start: node.startIndex,
+          end: node.endIndex,
+          content: line.slice(node.startIndex, node.endIndex)
+        });
+      }
+      
+      // Visit children
+      if (cursor.gotoFirstChild()) {
+        do {
+          traverse();
+        } while (cursor.gotoNextSibling());
+        cursor.gotoParent();
+      }
+    }
+    
+    traverse();
+    tree.delete();
+    
+    // Sort regions by start position
+    regions.sort((a, b) => a.start - b.start);
+    
+    // Fill in gaps with CODE regions
+    return fillCodeGaps(regions, line);
+  } catch (error) {
+    console.warn('[RegionDetector] Tree-sitter detection failed:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Get region type from tree-sitter node type
+ * @param {string} nodeType - Tree-sitter node type
+ * @param {string} language - Language identifier
+ * @returns {string|null} Region type or null if not a comment/string
+ */
+function getTreeSitterNodeType(nodeType, language) {
+  // Common comment node types across languages
+  const commentTypes = [
+    'comment',
+    'line_comment',
+    'block_comment',
+    'multi_line_comment',
+    'documentation_comment',
+    'hash_comment',  // Python, Ruby
+    'html_comment',  // HTML/XML
+  ];
   
-  // For now, fall back to regex detection
-  return detectWithRegex(line, language);
+  // Common string node types
+  const stringTypes = [
+    'string',
+    'string_literal',
+    'single_quote_string',
+    'double_quote_string',
+    'template_string',
+    'heredoc',
+    'character',
+    'raw_string',
+    'format_string',
+  ];
+  
+  if (commentTypes.includes(nodeType)) {
+    return REGION_TYPES.COMMENT;
+  }
+  
+  if (stringTypes.includes(nodeType)) {
+    return REGION_TYPES.STRING;
+  }
+  
+  // Language-specific patterns
+  if (language === 'python') {
+    if (nodeType === 'comment' || nodeType === 'hash_comment') return REGION_TYPES.COMMENT;
+    if (nodeType === 'string' || nodeType === 'concatenated_string') return REGION_TYPES.STRING;
+  }
+  
+  if (language === 'javascript' || language === 'typescript') {
+    if (nodeType === 'comment') return REGION_TYPES.COMMENT;
+    if (nodeType === 'string' || nodeType === 'template_string' || nodeType === 'regex') {
+      return REGION_TYPES.STRING;
+    }
+  }
+  
+  if (language === 'bash' || language === 'shell') {
+    if (nodeType === 'comment') return REGION_TYPES.COMMENT;
+    if (nodeType === 'string' || nodeType === 'raw_string') return REGION_TYPES.STRING;
+  }
+  
+  return null;
+}
+
+/**
+ * Fill gaps between regions with CODE type
+ * @param {Array<Object>} regions - Sorted regions
+ * @param {string} line - Original line
+ * @returns {Array<Object>} Complete region list including code gaps
+ */
+function fillCodeGaps(regions, line) {
+  if (regions.length === 0) {
+    return [{ type: REGION_TYPES.CODE, start: 0, end: line.length, content: line }];
+  }
+  
+  const result = [];
+  let currentPos = 0;
+  
+  for (const region of regions) {
+    // Add code region before this region if there's a gap
+    if (region.start > currentPos) {
+      result.push({
+        type: REGION_TYPES.CODE,
+        start: currentPos,
+        end: region.start,
+        content: line.slice(currentPos, region.start)
+      });
+    }
+    
+    // Add the region itself
+    result.push(region);
+    currentPos = region.end;
+  }
+  
+  // Add final code region if needed
+  if (currentPos < line.length) {
+    result.push({
+      type: REGION_TYPES.CODE,
+      start: currentPos,
+      end: line.length,
+      content: line.slice(currentPos)
+    });
+  }
+  
+  return result;
 }
 
 // ============================================================================
@@ -559,22 +702,25 @@ function findStringEnd(line, startIndex, stringConfig) {
  * Detect comment and string regions in a line
  * @param {string} line - The line to analyze
  * @param {string} language - The programming language (optional)
- * @returns {Array<Object>} Array of regions with type and positions
+ * @returns {Promise<Array<Object>>} Array of regions with type and positions
  */
-export function detectRegions(line, language = null) {
+export async function detectRegions(line, language = null) {
   if (!line || typeof line !== 'string') {
     return [];
   }
   
-  // Try tree-sitter first if available
-  if (isTreeSitterAvailable() && language) {
+  // Try tree-sitter first if available and language is supported
+  if (language && isLanguageSupported(language)) {
     try {
-      const treeSitterRegions = detectWithTreeSitter(line, language);
-      if (treeSitterRegions && treeSitterRegions.length > 0) {
-        return treeSitterRegions;
+      const treeSitterAvailable = await isTreeSitterAvailable();
+      if (treeSitterAvailable) {
+        const treeSitterRegions = await detectWithTreeSitter(line, language);
+        if (treeSitterRegions && treeSitterRegions.length > 0) {
+          return treeSitterRegions;
+        }
       }
     } catch (error) {
-      console.warn('Tree-sitter detection failed, falling back to regex:', error);
+      console.warn('[RegionDetector] Tree-sitter detection failed, falling back to regex:', error.message);
     }
   }
   
@@ -587,10 +733,10 @@ export function detectRegions(line, language = null) {
  * @param {string} line - The line to analyze
  * @param {number} position - Position in the line
  * @param {string} language - The programming language (optional)
- * @returns {string} Region type at the position
+ * @returns {Promise<string>} Region type at the position
  */
-export function getRegionTypeAt(line, position, language = null) {
-  const regions = detectRegions(line, language);
+export async function getRegionTypeAt(line, position, language = null) {
+  const regions = await detectRegions(line, language);
   
   for (const region of regions) {
     if (position >= region.start && position < region.end) {
@@ -606,10 +752,11 @@ export function getRegionTypeAt(line, position, language = null) {
  * @param {string} line - The line to analyze
  * @param {number} position - Position in the line
  * @param {string} language - The programming language (optional)
- * @returns {boolean} True if position is inside a comment
+ * @returns {Promise<boolean>} True if position is inside a comment
  */
-export function isInsideComment(line, position, language = null) {
-  return getRegionTypeAt(line, position, language) === REGION_TYPES.COMMENT;
+export async function isInsideComment(line, position, language = null) {
+  const type = await getRegionTypeAt(line, position, language);
+  return type === REGION_TYPES.COMMENT;
 }
 
 /**
@@ -617,10 +764,11 @@ export function isInsideComment(line, position, language = null) {
  * @param {string} line - The line to analyze
  * @param {number} position - Position in the line
  * @param {string} language - The programming language (optional)
- * @returns {boolean} True if position is inside a string
+ * @returns {Promise<boolean>} True if position is inside a string
  */
-export function isInsideString(line, position, language = null) {
-  return getRegionTypeAt(line, position, language) === REGION_TYPES.STRING;
+export async function isInsideString(line, position, language = null) {
+  const type = await getRegionTypeAt(line, position, language);
+  return type === REGION_TYPES.STRING;
 }
 
 /**
@@ -629,8 +777,8 @@ export function isInsideString(line, position, language = null) {
  * @param {string} language - The programming language (optional)
  * @returns {string} Line with comments removed
  */
-export function stripCommentsFromLine(line, language = null) {
-  const regions = detectRegions(line, language);
+export async function stripCommentsFromLine(line, language = null) {
+  const regions = await detectRegions(line, language);
   let result = line;
   
   // Remove comment regions, starting from the end to preserve indices
@@ -661,7 +809,5 @@ export default {
   stripCommentsFromLine,
   getSupportedLanguages,
   REGION_TYPES,
-  isTreeSitterAvailable,
-  detectWithTreeSitter,
   detectWithRegex
 };

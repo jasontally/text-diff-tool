@@ -32,7 +32,7 @@ describe('Complex Limits Integration', () => {
         { value: newText, added: true }
       ]);
       
-      const result = runDiffPipeline(oldText, newText, mockDiffLib);
+      const result = await runDiffPipeline(oldText, newText, mockDiffLib);
       
       expect(result.limitInfo).toBeDefined();
       expect(result.limitInfo.fastMode).toBe(true);
@@ -60,7 +60,7 @@ describe('Complex Limits Integration', () => {
         { value: 'new', added: false, removed: false }
       ]);
       
-      const result = runDiffPipeline(oldText, newText, mockDiffLib, {
+      const result = await runDiffPipeline(oldText, newText, mockDiffLib, {
         config: {
           MAX_LINES: 100000,
           MAX_GRAPH_VERTICES: 100, // Very low to trigger limit
@@ -95,7 +95,7 @@ describe('Complex Limits Integration', () => {
         { value: 'line2', added: false, removed: false }
       ]);
       
-      const result = runDiffPipeline(oldText, newText, mockDiffLib);
+      const result = await runDiffPipeline(oldText, newText, mockDiffLib);
       
       expect(result.limitInfo).toBeDefined();
       expect(result.limitInfo.fastMode).toBe(false);
@@ -128,7 +128,7 @@ describe('Complex Limits Integration', () => {
         { value: 'b', added: false, removed: false }
       ]);
       
-      const result = runDiffPipeline(oldText, newText, mockDiffLib, {
+      const result = await runDiffPipeline(oldText, newText, mockDiffLib, {
         config: customConfig
       });
       
@@ -156,7 +156,7 @@ describe('Complex Limits Integration', () => {
         { value: 'new', added: false, removed: false }
       ]);
       
-      const result = runDiffPipeline(oldText, newText, mockDiffLib, {
+      const result = await runDiffPipeline(oldText, newText, mockDiffLib, {
         config: {
           ENABLE_FAST_MODE: false
         }

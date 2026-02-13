@@ -3,7 +3,7 @@ import { runDiffPipeline, identifyChangeBlocks } from '../src/diff-algorithms.js
 import { diffLines, diffWords, diffChars } from 'diff';
 import { detectBlockMovesFast, BLOCK_MOVE_CONFIG } from '../src/block-move-detector.js';
 
-test('Debug block move detection step by step', () => {
+test('Debug block move detection step by step', async () => {
   const original = `line 1
 line 2
 function movedFunction() {
@@ -79,7 +79,7 @@ function movedFunction() {
   }
 
   // Step 5: Run full pipeline
-  const result = runDiffPipeline(original, modified, { diffLines, diffWords, diffChars }, {
+  const result = await runDiffPipeline(original, modified, { diffLines, diffWords, diffChars }, {
     detectMoves: true,
     modeToggles: { lines: true, words: true, chars: true }
   });

@@ -14,8 +14,7 @@ import {
   isInsideString,
   stripCommentsFromLine,
   getSupportedLanguages,
-  REGION_TYPES,
-  detectWithTreeSitter
+  REGION_TYPES
 } from '../src/region-detector.js';
 
 // ============================================================================
@@ -23,9 +22,9 @@ import {
 // ============================================================================
 
 describe('Region Detector Basic Functions', () => {
-  it('should return empty array for invalid input', () => {
-    expect(detectRegions(null)).toEqual([]);
-    expect(detectRegions('')).toEqual([]);
+  it('should return empty array for invalid input', async () => {
+    expect(await detectRegions(null)).toEqual([]);
+    expect(await detectRegions('')).toEqual([]);
   });
 
   it('should return supported languages list', () => {
@@ -40,49 +39,49 @@ describe('Region Detector Basic Functions', () => {
 // ============================================================================
 
 describe('JavaScript Language Tests', () => {
-  it('should detect single-line comments', () => {
+  it('should detect single-line comments', async () => {
     const line = 'const x = 5; // comment';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     expect(commentRegions[0].start).toBe(13);
   });
 
-  it('should detect block comments', () => {
+  it('should detect block comments', async () => {
     const line = 'const x = 5; /* block comment */';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     expect(commentRegions[0].content).toBe('/* block comment */');
   });
 
-  it('should detect double-quoted strings', () => {
+  it('should detect double-quoted strings', async () => {
     const line = 'const msg = "hello world";';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     expect(stringRegions).toHaveLength(1);
     expect(stringRegions[0].content).toBe('"hello world"');
   });
 
-  it('should detect single-quoted strings', () => {
+  it('should detect single-quoted strings', async () => {
     const line = "const msg = 'hello world';";
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     expect(stringRegions).toHaveLength(1);
     expect(stringRegions[0].content).toBe("'hello world'");
   });
 
-  it('should handle escaped quotes', () => {
+  it('should handle escaped quotes', async () => {
     const line = 'const msg = "hello \\"world\\"";';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     expect(stringRegions).toHaveLength(1);
     expect(stringRegions[0].content).toBe('"hello \\"world\\"');
   });
 
-  it('should not detect comments inside strings', () => {
+  it('should not detect comments inside strings', async () => {
     const line = 'const msg = "not // a comment"; // real comment';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     expect(stringRegions).toHaveLength(1);
@@ -96,17 +95,17 @@ describe('JavaScript Language Tests', () => {
 // ============================================================================
 
 describe('Python Language Tests', () => {
-  it('should detect hash comments', () => {
+  it('should detect hash comments', async () => {
     const line = 'x = 5 # this is a comment';
-    const regions = detectRegions(line, 'python');
+    const regions = await detectRegions(line, 'python');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     expect(commentRegions[0].start).toBe(6);
   });
 
-  it('should detect triple-quoted strings', () => {
+  it('should detect triple-quoted strings', async () => {
     const line = 'msg = """hello world"""';
-    const regions = detectRegions(line, 'python');
+    const regions = await detectRegions(line, 'python');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     // Current implementation splits triple quotes incorrectly
     expect(stringRegions.length).toBeGreaterThan(0);
@@ -119,43 +118,43 @@ describe('Python Language Tests', () => {
 // ============================================================================
 
 describe('Other Language Tests', () => {
-  it('should detect SQL comments', () => {
+  it('should detect SQL comments', async () => {
     const line = 'SELECT * FROM users -- comment';
-    const regions = detectRegions(line, 'sql');
+    const regions = await detectRegions(line, 'sql');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     expect(commentRegions[0].content).toBe('-- comment');
   });
 
-  it('should detect HTML comments', () => {
+  it('should detect HTML comments', async () => {
     const line = '<div>Hello</div> <!-- comment -->';
-    const regions = detectRegions(line, 'html');
+    const regions = await detectRegions(line, 'html');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     expect(commentRegions[0].content).toBe('<!-- comment -->');
   });
 
-  it('should detect Go raw strings', () => {
+  it('should detect Go raw strings', async () => {
     const line = 's := `hello world` // comment';
-    const regions = detectRegions(line, 'go');
+    const regions = await detectRegions(line, 'go');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(stringRegions).toHaveLength(1);
     expect(commentRegions).toHaveLength(1);
   });
 
-  it('should detect Rust raw strings', () => {
+  it('should detect Rust raw strings', async () => {
     const line = 'let s = r#"hello world"# // comment';
-    const regions = detectRegions(line, 'rust');
+    const regions = await detectRegions(line, 'rust');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(stringRegions).toHaveLength(1);
     expect(commentRegions).toHaveLength(1);
   });
 
-  it('should detect shell comments', () => {
+  it('should detect shell comments', async () => {
     const line = 'echo "hello" # comment';
-    const regions = detectRegions(line, 'shell');
+    const regions = await detectRegions(line, 'shell');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
   });
@@ -168,17 +167,17 @@ describe('Other Language Tests', () => {
 describe('Position-based Detection', () => {
   const line = 'const x = "hello"; // comment';
 
-  it('should detect regions at positions', () => {
-    expect(getRegionTypeAt(line, 20, 'javascript')).toBe(REGION_TYPES.COMMENT);
-    expect(getRegionTypeAt(line, 12, 'javascript')).toBe(REGION_TYPES.STRING);
-    expect(getRegionTypeAt(line, 5, 'javascript')).toBe(REGION_TYPES.CODE);
+  it('should detect regions at positions', async () => {
+    expect(await getRegionTypeAt(line, 20, 'javascript')).toBe(REGION_TYPES.COMMENT);
+    expect(await getRegionTypeAt(line, 12, 'javascript')).toBe(REGION_TYPES.STRING);
+    expect(await getRegionTypeAt(line, 5, 'javascript')).toBe(REGION_TYPES.CODE);
   });
 
-  it('should work with helper functions', () => {
-    expect(isInsideComment(line, 20, 'javascript')).toBe(true);
-    expect(isInsideComment(line, 10, 'javascript')).toBe(false);
-    expect(isInsideString(line, 12, 'javascript')).toBe(true);
-    expect(isInsideString(line, 20, 'javascript')).toBe(false);
+  it('should work with helper functions', async () => {
+    expect(await isInsideComment(line, 20, 'javascript')).toBe(true);
+    expect(await isInsideComment(line, 10, 'javascript')).toBe(false);
+    expect(await isInsideString(line, 12, 'javascript')).toBe(true);
+    expect(await isInsideString(line, 20, 'javascript')).toBe(false);
   });
 });
 
@@ -187,32 +186,32 @@ describe('Position-based Detection', () => {
 // ============================================================================
 
 describe('Edge Cases', () => {
-  it('should handle empty strings', () => {
+  it('should handle empty strings', async () => {
     const line = '"" // empty string';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     expect(stringRegions).toHaveLength(1);
     expect(stringRegions[0].content).toBe('""');
   });
 
-  it('should handle malformed strings', () => {
+  it('should handle malformed strings', async () => {
     const line = 'const x = "unclosed string';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     // Current implementation doesn't handle malformed strings
     expect(Array.isArray(regions)).toBe(true);
   });
 
-  it('should handle malformed block comments', () => {
+  it('should handle malformed block comments', async () => {
     const line = 'code here /* unclosed comment';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     expect(commentRegions[0].end).toBe(line.length);
   });
 
-  it('should handle unicode characters', () => {
+  it('should handle unicode characters', async () => {
     const line = 'const x = "hello 🌍 world"; // unicode';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     const stringRegions = regions.filter(r => r.type === REGION_TYPES.STRING);
     expect(stringRegions[0].content).toContain('🌍');
   });
@@ -223,21 +222,21 @@ describe('Edge Cases', () => {
 // ============================================================================
 
 describe('Comment Stripping', () => {
-  it('should strip line comments', () => {
+  it('should strip line comments', async () => {
     const line = 'const x = 5; // comment';
-    const result = stripCommentsFromLine(line, 'javascript');
+    const result = await stripCommentsFromLine(line, 'javascript');
     expect(result).toBe('const x = 5; ');
   });
 
-  it('should strip block comments', () => {
+  it('should strip block comments', async () => {
     const line = 'const x = 5; /* block comment */ more';
-    const result = stripCommentsFromLine(line, 'javascript');
+    const result = await stripCommentsFromLine(line, 'javascript');
     expect(result).toBe('const x = 5;  more');
   });
 
-  it('should preserve strings when stripping comments', () => {
+  it('should preserve strings when stripping comments', async () => {
     const line = 'const x = "not // comment"; // real comment';
-    const result = stripCommentsFromLine(line, 'javascript');
+    const result = await stripCommentsFromLine(line, 'javascript');
     expect(result).toBe('const x = "not // comment"; ');
   });
 });
@@ -247,18 +246,18 @@ describe('Comment Stripping', () => {
 // ============================================================================
 
 describe('Fallback Mode Tests', () => {
-  it('should work with unknown language', () => {
+  it('should work with unknown language', async () => {
     const line = 'code // comment "string"';
-    const regions = detectRegions(line, 'unknown-language');
+    const regions = await detectRegions(line, 'unknown-language');
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     // String is inside comment, so it's not detected as string
     expect(commentRegions[0].content).toBe('// comment "string"');
   });
 
-  it('should work without language parameter', () => {
+  it('should work without language parameter', async () => {
     const line = 'code // comment "string"';
-    const regions = detectRegions(line);
+    const regions = await detectRegions(line);
     const commentRegions = regions.filter(r => r.type === REGION_TYPES.COMMENT);
     expect(commentRegions).toHaveLength(1);
     // String is inside comment, so it's not detected as string
@@ -271,16 +270,10 @@ describe('Fallback Mode Tests', () => {
 // ============================================================================
 
 describe('Edge Case Coverage Tests', () => {
-  it('should test detectWithTreeSitter function directly', () => {
-    const line = 'const x = "test"; // comment';
-    const result = detectWithTreeSitter(line, 'javascript');
-    expect(Array.isArray(result)).toBe(true);
-  });
-
-  it('should handle unclosed string with unusual pattern', () => {
+  it('should handle unclosed string with unusual pattern', async () => {
     // Create a case where string end is not found
     const line = 'const x = "test with no end';
-    const regions = detectRegions(line, 'javascript');
+    const regions = await detectRegions(line, 'javascript');
     expect(Array.isArray(regions)).toBe(true);
   });
 });

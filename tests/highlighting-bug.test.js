@@ -10,11 +10,11 @@ import { runDiffPipeline, detectModifiedLines } from '../src/diff-algorithms.js'
 import { TEST_CONFIG } from './test-config.js';
 
 describe('Word/Char Highlighting Bug - 3 Lines', () => {
-  it('should highlight word changes in line 2 with 2 lines total', () => {
+  it('should highlight word changes in line 2 with 2 lines total', async () => {
     const oldText = '# System Configuration\n# Version: 1.0.4';
     const newText = '# System Configuration\n# Version: 1.0.5';
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG,
       modeToggles: { lines: true, words: true, chars: true }
     });
@@ -30,11 +30,11 @@ describe('Word/Char Highlighting Bug - 3 Lines', () => {
     expect(hasWordDiff).toBe(true);
   });
 
-  it('should highlight word changes in lines 2 and 3 with 3 lines total', () => {
+  it('should highlight word changes in lines 2 and 3 with 3 lines total', async () => {
     const oldText = '# System Configuration\n# Version: 1.0.4\n# Author: Alex Smith';
     const newText = '# System Configuration\n# Version: 1.0.5\n# Author: Alex J. Smith';
     
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG,
       modeToggles: { lines: true, words: true, chars: true }
     });
@@ -60,7 +60,7 @@ describe('Word/Char Highlighting Bug - 3 Lines', () => {
     });
   });
 
-  it('should properly detect modified lines directly', () => {
+  it('should properly detect modified lines directly', async () => {
     const oldText = '# System Configuration\n# Version: 1.0.4\n# Author: Alex Smith';
     const newText = '# System Configuration\n# Version: 1.0.5\n# Author: Alex J. Smith';
     
@@ -69,7 +69,7 @@ describe('Word/Char Highlighting Bug - 3 Lines', () => {
     console.log('Raw diffLines results:', JSON.stringify(rawResults, null, 2));
     
     // Then run detectModifiedLines
-    const classified = detectModifiedLines(rawResults, diffWords, diffChars, {
+    const classified = await detectModifiedLines(rawResults, diffWords, diffChars, {
       modeToggles: { lines: true, words: true, chars: true }
     });
     
@@ -85,7 +85,7 @@ describe('Word/Char Highlighting Bug - 3 Lines', () => {
     });
   });
 
-  it('should show the exact structure of the 3-line diff', () => {
+  it('should show the exact structure of the 3-line diff', async () => {
     const oldText = '# System Configuration\n# Version: 1.0.4\n# Author: Alex Smith';
     const newText = '# System Configuration\n# Version: 1.0.5\n# Author: Alex J. Smith';
     
@@ -97,7 +97,7 @@ describe('Word/Char Highlighting Bug - 3 Lines', () => {
     });
     
     // Run full pipeline
-    const result = runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
+    const result = await runDiffPipeline(oldText, newText, { diffLines, diffWords, diffChars }, {
       config: TEST_CONFIG,
       modeToggles: { lines: true, words: true, chars: true }
     });

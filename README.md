@@ -4,7 +4,7 @@ A free, private text comparison tool for developers, network engineers, and writ
 
 **Production URL**: [https://diff.jasontally.com](https://diff.jasontally.com) - Use it instantly, no install required  
 **License**: MIT (Copyright (c) 2026 Jason Tally and contributors)  
-**Version**: 0.1.14
+**Version**: 0.1.15
 
 ---
 
@@ -220,4 +220,4 @@ Contributions welcome! Please read the code conventions and testing guidelines i
 **Copyright (c) 2026 Jason Tally and contributors**  
 **License**: MIT (see [LICENSE](./LICENSE))
 
-Created by Jason Tally | [MIT License](./LICENSE) | Version 0.1.14
+Created by Jason Tally | [MIT License](./LICENSE) | Version 0.1.15

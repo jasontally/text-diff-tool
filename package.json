@@ -1,6 +1,6 @@
 {
   "name": "text-diff-tool",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Free online text diff tool to compare code and config files. 100% private, client-side processing.",
   "type": "module",
   "scripts": {

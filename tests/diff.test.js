@@ -29,31 +29,31 @@ import {
 // ============================================================================
 
 describe('Signature Generation', () => {
-  it('should generate consistent signatures for identical lines', () => {
+  it('should generate consistent signatures for identical lines', async () => {
     const sig1 = generateLineSignature('interface GigabitEthernet0/1');
     const sig2 = generateLineSignature('interface GigabitEthernet0/1');
     expect(sig1).toBe(sig2);
   });
 
-  it('should generate different signatures for different lines', () => {
+  it('should generate different signatures for different lines', async () => {
     const sig1 = generateLineSignature('abcdefghijklmnopqrstuvwxyz');
     const sig2 = generateLineSignature('zyxwvutsrqponmlkjihgfedcba');
     // These have the same characters but different order, should produce different signatures
     expect(sig1).not.toBe(sig2);
   });
 
-  it('should handle empty lines', () => {
+  it('should handle empty lines', async () => {
     const sig = generateLineSignature('');
     expect(sig).toBe(0);
   });
 
-  it('should be case insensitive', () => {
+  it('should be case insensitive', async () => {
     const sig1 = generateLineSignature('Interface');
     const sig2 = generateLineSignature('interface');
     expect(sig1).toBe(sig2);
   });
 
-  it('should ignore leading/trailing whitespace', () => {
+  it('should ignore leading/trailing whitespace', async () => {
     const sig1 = generateLineSignature('  interface  ');
     const sig2 = generateLineSignature('interface');
     expect(sig1).toBe(sig2);
@@ -65,17 +65,17 @@ describe('Signature Generation', () => {
 // ============================================================================
 
 describe('Hamming Distance', () => {
-  it('should return 0 for identical signatures', () => {
+  it('should return 0 for identical signatures', async () => {
     const distance = signatureHammingDistance(0b1010, 0b1010);
     expect(distance).toBe(0);
   });
 
-  it('should count differing bits', () => {
+  it('should count differing bits', async () => {
     const distance = signatureHammingDistance(0b0000, 0b1111);
     expect(distance).toBe(4);
   });
 
-  it('should work with 32-bit signatures', () => {
+  it('should work with 32-bit signatures', async () => {
     const sig1 = generateLineSignature('line one');
     const sig2 = generateLineSignature('line two');
     const distance = signatureHammingDistance(sig1, sig2);
@@ -89,13 +89,13 @@ describe('Hamming Distance', () => {
 // ============================================================================
 
 describe('Similarity Estimation', () => {
-  it('should return 1.0 for identical lines', () => {
+  it('should return 1.0 for identical lines', async () => {
     const sig = generateLineSignature('test line');
     const similarity = estimateSimilarity(sig, sig);
     expect(similarity).toBe(1.0);
   });
 
-  it('should return lower similarity for different lines', () => {
+  it('should return lower similarity for different lines', async () => {
     const sig1 = generateLineSignature('interface GigabitEthernet0/1');
     const sig2 = generateLineSignature('completely different content here');
     const similarity = estimateSimilarity(sig1, sig2);
@@ -105,7 +105,7 @@ describe('Similarity Estimation', () => {
     expect(similarity).toBeGreaterThanOrEqual(0);
   });
 
-  it('should return values between 0 and 1', () => {
+  it('should return values between 0 and 1', async () => {
     const sig1 = generateLineSignature('interface GigabitEthernet0/1');
     const sig2 = generateLineSignature('interface GigabitEthernet0/2');
     const similarity = estimateSimilarity(sig1, sig2);
@@ -119,17 +119,17 @@ describe('Similarity Estimation', () => {
 // ============================================================================
 
 describe('Full Similarity Calculation', () => {
-  it('should return 1.0 for identical lines', () => {
+  it('should return 1.0 for identical lines', async () => {
     const similarity = calculateSimilarity('test line', 'test line', diffWords);
     expect(similarity).toBe(1.0);
   });
 
-  it('should return 0.0 for completely different lines', () => {
+  it('should return 0.0 for completely different lines', async () => {
     const similarity = calculateSimilarity('abc', 'xyz', diffWords);
     expect(similarity).toBe(0.0);
   });
 
-  it('should detect partial similarity', () => {
+  it('should detect partial similarity', async () => {
     const similarity = calculateSimilarity(
       'interface GigabitEthernet0/1',
       'interface GigabitEthernet0/2',
@@ -139,18 +139,18 @@ describe('Full Similarity Calculation', () => {
     expect(similarity).toBeLessThan(1.0);
   });
 
-  it('should handle empty lines', () => {
+  it('should handle empty lines', async () => {
     expect(calculateSimilarity('', '', diffWords)).toBe(1.0);
     expect(calculateSimilarity('text', '', diffWords)).toBe(0.0);
     expect(calculateSimilarity('', 'text', diffWords)).toBe(0.0);
   });
 
-  it('should be case insensitive', () => {
+  it('should be case insensitive', async () => {
     const similarity = calculateSimilarity('Test Line', 'test line', diffWords);
     expect(similarity).toBe(1.0);
   });
 
-  it('should ignore leading/trailing whitespace', () => {
+  it('should ignore leading/trailing whitespace', async () => {
     const similarity = calculateSimilarity('  test  ', 'test', diffWords);
     expect(similarity).toBe(1.0);
   });
@@ -161,7 +161,7 @@ describe('Full Similarity Calculation', () => {
 // ============================================================================
 
 describe('Change Block Identification', () => {
-  it('should identify simple add/remove block', () => {
+  it('should identify simple add/remove block', async () => {
     const diffResults = [
       { value: 'line 1', removed: true },
       { value: 'line 1 modified', added: true }
@@ -173,7 +173,7 @@ describe('Change Block Identification', () => {
     expect(blocks[0].added).toHaveLength(1);
   });
 
-  it('should identify multiple consecutive changes as one block', () => {
+  it('should identify multiple consecutive changes as one block', async () => {
     const diffResults = [
       { value: 'old 1', removed: true },
       { value: 'old 2', removed: true },
@@ -187,7 +187,7 @@ describe('Change Block Identification', () => {
     expect(blocks[0].added).toHaveLength(2);
   });
 
-  it('should separate non-consecutive changes', () => {
+  it('should separate non-consecutive changes', async () => {
     const diffResults = [
       { value: 'old 1', removed: true },
       { value: 'unchanged', added: false, removed: false },
@@ -199,7 +199,7 @@ describe('Change Block Identification', () => {
     expect(blocks).toHaveLength(2);
   });
 
-  it('should preserve original indices', () => {
+  it('should preserve original indices', async () => {
     const diffResults = [
       { value: 'old', removed: true },
       { value: 'new', added: true }
@@ -216,7 +216,7 @@ describe('Change Block Identification', () => {
 // ============================================================================
 
 describe('Optimized Similarity Matrix', () => {
-  it('should build matrix for single remove/add pair', () => {
+  it('should build matrix for single remove/add pair', async () => {
     const block = {
       removed: [{ line: 'test', index: 0 }],
       added: [{ line: 'test', index: 1 }]
@@ -228,7 +228,7 @@ describe('Optimized Similarity Matrix', () => {
     expect(matrix[0][0]).toBe(1.0);
   });
 
-  it('should build matrix for multiple pairs', () => {
+  it('should build matrix for multiple pairs', async () => {
     const block = {
       removed: [{ line: 'a', index: 0 }, { line: 'b', index: 1 }],
       added: [{ line: 'a', index: 2 }, { line: 'c', index: 3 }]
@@ -243,7 +243,7 @@ describe('Optimized Similarity Matrix', () => {
     expect(matrix[1][1]).toBeLessThan(0.5); // b vs c
   });
 
-  it('should use fast threshold to skip expensive diffs', () => {
+  it('should use fast threshold to skip expensive diffs', async () => {
     const block = {
       removed: [{ line: 'completely different text here', index: 0 }],
       added: [{ line: 'nothing alike at all', index: 1 }]
@@ -260,32 +260,37 @@ describe('Optimized Similarity Matrix', () => {
 // ============================================================================
 
 describe('Optimal Pairing', () => {
-  it('should pair identical lines as modified', () => {
+  it('should pair identical lines as modified', async () => {
     const block = {
       removed: [{ line: 'test', index: 0 }],
       added: [{ line: 'test', index: 1 }]
     };
     const matrix = [[1.0]];
     
-    const pairings = findOptimalPairings(block, matrix, diffWords, diffChars);
+    const pairings = await findOptimalPairings(block, matrix, diffWords, diffChars);
     expect(pairings).toHaveLength(1);
     expect(pairings[0].type).toBe('modified');
     expect(pairings[0].similarity).toBe(1.0);
   });
 
-  it('should pair lines regardless of similarity', () => {
+  it('should only pair lines meeting similarity threshold', async () => {
     const block = {
       removed: [{ line: 'foo bar', index: 0 }],
       added: [{ line: 'baz qux', index: 1 }]
     };
+    // Similarity 0.1 is below CONFIG.MODIFIED_THRESHOLD (0.50)
+    // So lines should NOT be paired as modified
     const matrix = [[0.1]];
 
-    const pairings = findOptimalPairings(block, matrix, diffWords, diffChars);
-    expect(pairings).toHaveLength(1);
-    expect(pairings[0].type).toBe('modified');
+    const pairings = await findOptimalPairings(block, matrix, diffWords, diffChars);
+    // Should get 2 pairings: 1 removed + 1 added (not modified)
+    expect(pairings).toHaveLength(2);
+    expect(pairings.some(p => p.type === 'removed')).toBe(true);
+    expect(pairings.some(p => p.type === 'added')).toBe(true);
+    expect(pairings.some(p => p.type === 'modified')).toBe(false);
   });
 
-  it('should pair best matches first (greedy)', () => {
+  it('should pair best matches first (greedy)', async () => {
     const block = {
       removed: [
         { line: 'aaa', index: 0 },
@@ -303,12 +308,12 @@ describe('Optimal Pairing', () => {
       [0.1, 1.0]
     ];
     
-    const pairings = findOptimalPairings(block, matrix, diffWords, diffChars);
+    const pairings = await findOptimalPairings(block, matrix, diffWords, diffChars);
     const modified = pairings.filter(p => p.type === 'modified');
     expect(modified).toHaveLength(2);
   });
 
-  it('should handle unequal numbers of removes and adds', () => {
+  it('should handle unequal numbers of removes and adds', async () => {
     const block = {
       removed: [{ line: 'old', index: 0 }],
       added: [
@@ -316,10 +321,16 @@ describe('Optimal Pairing', () => {
         { line: 'new2', index: 2 }
       ]
     };
+    // Similarity 0.3 is below CONFIG.MODIFIED_THRESHOLD (0.50)
+    // So no modified pairing should occur
     const matrix = [[0.3, 0.3]];
 
-    const pairings = findOptimalPairings(block, matrix, diffWords, diffChars);
-    expect(pairings).toHaveLength(2); // 1 modified + 1 added
+    const pairings = await findOptimalPairings(block, matrix, diffWords, diffChars);
+    // Should get 3 pairings: 1 removed + 2 added (no modified since similarity < threshold)
+    expect(pairings).toHaveLength(3);
+    expect(pairings.filter(p => p.type === 'removed').length).toBe(1);
+    expect(pairings.filter(p => p.type === 'added').length).toBe(2);
+    expect(pairings.filter(p => p.type === 'modified').length).toBe(0);
   });
 });
 
@@ -328,7 +339,7 @@ describe('Optimal Pairing', () => {
 // ============================================================================
 
 describe('Block Move Detection', () => {
-  it('should detect exact moves across blocks', () => {
+  it('should detect exact moves across blocks', async () => {
     // Need at least 10 total changes to trigger move detection
     const blocks = [
       {
@@ -359,7 +370,7 @@ describe('Block Move Detection', () => {
     expect(result.moves.get(4).toIndex).toBe(9);
   });
 
-  it('should not detect moves within same block', () => {
+  it('should not detect moves within same block', async () => {
     const blocks = [
       {
         removed: [{ line: 'line', index: 0 }],
@@ -371,7 +382,7 @@ describe('Block Move Detection', () => {
     expect(result.moves.size).toBe(0);
   });
 
-  it('should require minimum number of changes', () => {
+  it('should require minimum number of changes', async () => {
     const blocks = [
       {
         removed: [{ line: 'a', index: 0 }],
@@ -383,7 +394,7 @@ describe('Block Move Detection', () => {
     expect(result.moves.size).toBe(0); // Below threshold
   });
 
-  it('should only detect high-similarity moves', () => {
+  it('should only detect high-similarity moves', async () => {
     const blocks = [
       {
         removed: [{ line: 'original text here', index: 0 }],
@@ -405,57 +416,57 @@ describe('Block Move Detection', () => {
 // ============================================================================
 
 describe('Complete Pipeline', () => {
-  it('should classify simple modifications', () => {
+  it('should classify simple modifications', async () => {
     const oldText = 'interface GigabitEthernet0/1\n  ip address 192.168.1.1 255.255.255.0\n  no shutdown';
     const newText = 'interface GigabitEthernet0/1\n  ip address 10.0.0.1 255.255.255.0\n  no shutdown';
     
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars);
     
     expect(classified.some(c => c.classification === 'modified')).toBe(true);
   });
 
-  it('should classify additions and removals', () => {
+  it('should classify additions and removals', async () => {
     const oldText = 'interface GigabitEthernet0/1\n  no shutdown';
     const newText = 'interface GigabitEthernet0/1\n  ip address 192.168.1.1 255.255.255.0\n  no shutdown';
     
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars);
     
     expect(classified.some(c => c.classification === 'added')).toBe(true);
   });
 
-  it('should classify line added at end as added', () => {
+  it('should classify line added at end as added', async () => {
     const oldText = 'line one';
     const newText = 'line one\nnew line added';
     
     // Use the fix function before detectModifiedLines
     const rawDiff = diffLines(oldText, newText);
     const fixedDiff = fixDiffLinesClassification(rawDiff, oldText);
-    const classified = detectModifiedLines(fixedDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(fixedDiff, diffWords, diffChars);
     
     expect(classified.some(c => c.classification === 'added')).toBe(true);
     expect(classified.filter(c => c.classification === 'added').length).toBe(1);
   });
 
-  it('should classify line removed from end as removed', () => {
+  it('should classify line removed from end as removed', async () => {
     const oldText = 'line one\nline to remove';
     const newText = 'line one';
     
     const rawDiff = diffLines(oldText, newText);
     const fixedDiff = fixDiffLinesClassification(rawDiff, oldText);
-    const classified = detectModifiedLines(fixedDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(fixedDiff, diffWords, diffChars);
     
     expect(classified.some(c => c.classification === 'removed')).toBe(true);
     expect(classified.filter(c => c.classification === 'removed').length).toBe(1);
   });
 
-  it('should include wordDiff for modified lines', () => {
+  it('should include wordDiff for modified lines', async () => {
     const oldText = 'interface GigabitEthernet0/1 description old';
     const newText = 'interface GigabitEthernet0/1 description new';
     
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars);
     
     const modified = classified.find(c => c.classification === 'modified');
     expect(modified).toBeDefined();
@@ -463,12 +474,12 @@ describe('Complete Pipeline', () => {
     expect(Array.isArray(modified.wordDiff)).toBe(true);
   });
 
-  it('should calculate accurate statistics', () => {
+  it('should calculate accurate statistics', async () => {
     const oldText = 'keep\nremove\nmodify';
     const newText = 'keep\nadd\nmodified';
     
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars);
     const stats = calculateStats(classified);
     
     expect(stats.unchanged).toBeGreaterThan(0);
@@ -482,7 +493,7 @@ describe('Complete Pipeline', () => {
 // ============================================================================
 
 describe('Statistics Calculation', () => {
-  it('should count all classifications', () => {
+  it('should count all classifications', async () => {
     const classified = [
       { classification: 'added' },
       { classification: 'removed' },
@@ -498,7 +509,7 @@ describe('Statistics Calculation', () => {
     expect(stats.totalChanges).toBe(4);
   });
 
-  it('should handle empty results', () => {
+  it('should handle empty results', async () => {
     const stats = calculateStats([]);
     expect(stats.added).toBe(0);
     expect(stats.removed).toBe(0);
@@ -508,7 +519,7 @@ describe('Statistics Calculation', () => {
     expect(stats.totalChanges).toBe(0);
   });
 
-  it('should count multiple of same type', () => {
+  it('should count multiple of same type', async () => {
     const classified = [
       { classification: 'added' },
       { classification: 'added' },
@@ -526,19 +537,19 @@ describe('Statistics Calculation', () => {
 // ============================================================================
 
 describe('Configuration', () => {
-  it('should have reasonable default thresholds', () => {
-    expect(CONFIG.MODIFIED_THRESHOLD).toBe(0.60);
+  it('should have reasonable default thresholds', async () => {
+    expect(CONFIG.MODIFIED_THRESHOLD).toBe(0.50);
     expect(CONFIG.MOVE_THRESHOLD).toBe(0.90);
     expect(CONFIG.FAST_THRESHOLD).toBe(0.30);
   });
 
-  it('should have valid signature configuration', () => {
+  it('should have valid signature configuration', async () => {
     expect(CONFIG.SIGNATURE_BITS).toBe(32);
     expect(CONFIG.LSH_BANDS).toBe(8);
     expect(CONFIG.SIGNATURE_BITS % CONFIG.LSH_BANDS).toBe(0); // Must divide evenly
   });
 
-  it('should have reasonable file size limits', () => {
+  it('should have reasonable file size limits', async () => {
     expect(CONFIG.MIN_LINES_FOR_MOVE_DETECTION).toBeLessThan(CONFIG.MAX_LINES_FOR_MOVE_DETECTION);
     expect(CONFIG.MAX_LINES_FOR_MOVE_DETECTION).toBe(50000);
   });
@@ -549,20 +560,20 @@ describe('Configuration', () => {
 // ============================================================================
 
 describe('Performance', () => {
-  it('should handle 100 lines quickly', () => {
+  it('should handle 100 lines quickly', async () => {
     const oldText = Array(100).fill('line').map((l, i) => `${l} ${i}`).join('\n');
     const newText = Array(100).fill('line').map((l, i) => `${l} ${i + 1}`).join('\n');
     
     const start = performance.now();
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars);
     const duration = performance.now() - start;
     
     expect(duration).toBeLessThan(1000); // Should complete in under 1 second
     expect(classified.length).toBeGreaterThan(0);
   });
 
-  it('should handle lines with varying similarity', () => {
+  it('should handle lines with varying similarity', async () => {
     const lines = [
       'interface GigabitEthernet0/1',
       '  ip address 192.168.1.1 255.255.255.0',
@@ -574,12 +585,12 @@ describe('Performance', () => {
     const newText = lines.map(l => l.replace('192.168.1.1', '10.0.0.1')).join('\n');
     
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars);
     
     expect(classified.filter(c => c.classification === 'modified').length).toBeGreaterThan(0);
   });
 
-  it('should store both removedLine and addedLine for modified lines', () => {
+  it('should store both removedLine and addedLine for modified lines', async () => {
     // This test verifies that modified lines have both values stored correctly
     // for display in separate panels
     // Use lines with >60% similarity to ensure they're classified as modified
@@ -587,7 +598,7 @@ describe('Performance', () => {
     const newText = 'interface GigabitEthernet0/1\n  ip address 10.0.0.1 255.255.255.0';
     
     const rawDiff = diffLines(oldText, newText);
-    const classified = detectModifiedLines(rawDiff, diffWords, diffChars);
+    const classified = await detectModifiedLines(rawDiff, diffWords, diffChars);
     
     // Find modified lines
     const modifiedLines = classified.filter(c => c.classification === 'modified');

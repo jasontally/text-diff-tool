@@ -9,11 +9,11 @@ const mockDiffWords = (a, b) => [{ value: a, removed: true }, { value: b, added:
 const mockDiffChars = (a, b) => [{ value: a, removed: true }, { value: b, added: true }];
 
 describe('Block Move Detection Integration', () => {
-  it('should handle simple case without breaking existing functionality', () => {
+  it('should handle simple case without breaking existing functionality', async () => {
     const oldText = 'line 1\nline 2\nline 3';
     const newText = 'line 1\nmodified line 2\nline 3';
     
-    const results = detectModifiedLines(
+    const results = await detectModifiedLines(
       [
         { value: 'line 1\n' },
         { value: 'line 2\n' },
@@ -32,11 +32,11 @@ describe('Block Move Detection Integration', () => {
     expect(classifications.every(c => typeof c === 'string')).toBe(true);
   });
 
-  it('should return blockMoves property when available', () => {
+  it('should return blockMoves property when available', async () => {
     const oldText = 'function a() {}\nfunction b() {}';
     const newText = 'function b() {}\nfunction a() {}';
     
-    const results = detectModifiedLines(
+    const results = await detectModifiedLines(
       [
         { value: 'function a() {}\n', removed: true },
         { value: 'function b() {}\n', removed: true },
