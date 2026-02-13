@@ -1247,6 +1247,102 @@ tests/
     └── performance.spec.js
 ```
 
+### Debugging and Diagnostics
+
+The diff pipeline includes comprehensive debug logging for troubleshooting content issues:
+
+#### Debug Infrastructure
+
+**Debug Flag** (`src/diff-algorithms.js:28`):
+```javascript
+const DEBUG_PIPELINE = false; // Set to true to enable detailed logging
+```
+
+**Debug Functions**:
+- `debugLog(stage, message, data)` - General pipeline logging
+- `debugContentStats(stage, results, context)` - Line counts and statistics
+- `debugSearchContent(stage, results, searchText)` - Find specific content
+
+#### Pipeline Stages Monitored
+
+1. **Entry Point** (`runDiffPipeline`):
+   - Input text lengths and line counts
+   - Mode selection (single-pass vs two-pass)
+   - Fast mode trigger conditions
+
+2. **Raw Diff** (`diffLines`):
+   - Initial diff output from library
+   - Entry classifications (added/removed/unchanged)
+   - Line counts per entry
+
+3. **Classification Fix** (`fixDiffLinesClassification`):
+   - Bug fix transformations
+   - Entries being reclassified
+   - Lines being dropped (with "POPPING" log messages)
+
+4. **Modified Detection** (`detectModifiedLines`):
+   - Similarity calculations
+   - Pairing decisions
+   - Move detection results
+
+5. **Final Output** (`runDiffPipeline EXIT`):
+   - Complete statistics
+   - Line preservation verification
+
+#### Content Preservation Tests
+
+**Test Files**:
+- `tests/test-content-preservation.test.js` - Verifies all input lines appear in output
+- `tests/test-missing-lines.test.js` - Reproduces specific content loss scenarios
+
+**Running Tests**:
+```bash
+# Run preservation tests
+npm test -- tests/test-content-preservation.test.js
+
+# Run missing lines test
+npm test -- tests/test-missing-lines.test.js
+
+# Run with debug output visible
+DEBUG_DIFF=1 npm test -- tests/test-missing-lines.test.js
+```
+
+#### Common Debug Patterns
+
+**1. Lines Disappearing**:
+- Check `fixDiffLinesClassification` logs for "POPPING" messages
+- Look for line count changes: `WARNING: Line count changed! Raw: X, Fixed: Y`
+- Verify entries aren't being incorrectly merged or dropped
+
+**2. Incorrect Classifications**:
+- Review "Reclassifying as 'added'" messages
+- Check if unchanged lines are being incorrectly marked as added
+- Look for classification transformations at each stage
+
+**3. Content Mismatches**:
+- Use `debugSearchContent()` to track specific lines
+- Verify target content appears in raw diff output
+- Check if content survives through all pipeline stages
+
+#### Enabling Debug Mode
+
+**Option 1 - Browser Console**:
+```javascript
+localStorage.setItem('diffDebug', 'true');
+location.reload();
+```
+
+**Option 2 - Code Change**:
+Edit `src/diff-algorithms.js` line 28:
+```javascript
+const DEBUG_PIPELINE = true;
+```
+
+**Option 3 - Environment Variable** (Node.js tests):
+```bash
+DEBUG_DIFF=1 npm test
+```
+
 ---
 
 ## Next Steps

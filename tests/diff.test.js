@@ -442,7 +442,8 @@ describe('Complete Pipeline', () => {
     
     // Use the fix function before detectModifiedLines
     const rawDiff = diffLines(oldText, newText);
-    const fixedDiff = fixDiffLinesClassification(rawDiff, oldText);
+    // Pass both oldText and newText to enable content preservation check
+    const fixedDiff = fixDiffLinesClassification(rawDiff, oldText, newText);
     const classified = await detectModifiedLines(fixedDiff, diffWords, diffChars);
     
     expect(classified.some(c => c.classification === 'added')).toBe(true);
@@ -454,7 +455,8 @@ describe('Complete Pipeline', () => {
     const newText = 'line one';
     
     const rawDiff = diffLines(oldText, newText);
-    const fixedDiff = fixDiffLinesClassification(rawDiff, oldText);
+    // Pass both oldText and newText to enable content preservation check
+    const fixedDiff = fixDiffLinesClassification(rawDiff, oldText, newText);
     const classified = await detectModifiedLines(fixedDiff, diffWords, diffChars);
     
     expect(classified.some(c => c.classification === 'removed')).toBe(true);

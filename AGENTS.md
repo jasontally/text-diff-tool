@@ -133,6 +133,55 @@ All runtime dependencies must be loaded via CDN:
 - Don't add mocks for browser-specific functionality - test in real browsers
 - **Extract algorithms into testable modules** instead of inlining untestable code in workers
 
+### Debugging the Diff Pipeline
+
+When content appears to be lost or incorrectly processed, enable detailed debug logging:
+
+**Enable Debug Mode:**
+
+1. **In Browser Console** (temporary):
+   ```javascript
+   localStorage.setItem('diffDebug', 'true');
+   location.reload();
+   ```
+
+2. **In Code** (permanent):
+   Edit `src/diff-algorithms.js` and change:
+   ```javascript
+   const DEBUG_PIPELINE = true; // Line ~28
+   ```
+
+3. **In Node.js Tests**:
+   ```bash
+   DEBUG_DIFF=1 npm test
+   ```
+
+**What Gets Logged:**
+- Pipeline entry/exit points with content statistics
+- Each transformation stage (raw → fixed → classified)
+- Line counts at each stage to detect content loss
+- Specific entries being modified or dropped
+- Content search results for targeted debugging
+
+**Debug Functions Available:**
+- `debugLog(stage, message, data)` - General logging
+- `debugContentStats(stage, results, context)` - Content statistics
+- `debugSearchContent(stage, results, searchText)` - Find specific content
+
+**Common Issues to Debug:**
+- **Lines disappearing**: Check `fixDiffLinesClassification` - look for "POPPING" messages
+- **Incorrect classifications**: Check entry transformations in each stage
+- **Content mismatches**: Use `debugSearchContent()` to track specific lines
+
+**Content Preservation Tests:**
+When investigating content loss, run the preservation tests:
+```bash
+npm test -- tests/test-content-preservation.test.js
+npm test -- tests/test-missing-lines.test.js
+```
+
+These tests verify that all input lines appear in the output and catch regression issues.
+
 ### File Type Detection Strategy
 
 **Two-level detection system:**

@@ -10,7 +10,7 @@
     <link rel="canonical" href="https://diff.jasontally.com">
     <meta name="url" content="https://diff.jasontally.com">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <meta name="generator" content="Text Diff Tool v0.1.15">
+    <meta name="generator" content="Text Diff Tool v0.2.0">
     <meta name="url" content="https://diff.jasontally.com">
     <meta property="og:title" content="Text Diff Tool - Compare Code & Config Files Online | Free & Private">
     <meta property="og:description" content="Free online text diff tool. 100% private - your data never leaves your browser. No signup required.">
@@ -1471,11 +1471,6 @@
     <script type="module">
         console.log('[Main] Script module starting...');
         
-        // Import worker template from src/diff-worker.js
-        // Cache busting version: 9 - forces browser to reload when updated
-        import { WORKER_CODE_TEMPLATE } from './src/diff-worker.js?v=9';
-        console.log('[Main] diff-worker imported');
-        
         // Import language detection for syntax highlighting
         import { detectLanguage } from './src/language-detect.js?v=9';
         console.log('[Main] language-detect imported');
@@ -1489,6 +1484,19 @@
             addCacheBusting 
         } from './src/module-validator.js?v=9';
         console.log('[Main] module-validator imported');
+        
+        // Import diff library for main thread execution (replacing Web Worker)
+        import { diffLines, diffWords, diffChars } from 'https://esm.sh/diff@5.1.0';
+        console.log('[Main] diff library imported');
+        
+        // Import diff pipeline algorithms for main thread execution
+        import { runDiffPipeline } from './src/diff-algorithms.js?v=14';
+        console.log('[Main] diff-algorithms imported');
+        
+        // Import Tree-sitter move detector for semantic move detection
+        // Uses AST parsing to detect moves even when comments differ
+        import { enhanceDiffWithTreeSitterMoves } from './src/tree-sitter-move-detector.js?v=14';
+        console.log('[Main] tree-sitter-move-detector imported');
         
         // ============================================================================
         // Error Handling Utilities - Always log to console AND show user messages
@@ -1594,269 +1602,6 @@
         }
         
         // ============================================================================
-        // DiffWorker Class - Manages Web Worker for diff calculations
-        // ============================================================================
-        class DiffWorker {
-            constructor(workerCodeTemplate) {
-                console.log('[DiffWorker] Constructor called');
-                this.worker = null;
-                this.pendingPromise = null;
-                this.onComplete = null;
-                this.workerCodeTemplate = workerCodeTemplate;
-                this.validationResult = null;
-                this.init();
-            }
-            
-            init() {
-                console.log('[DiffWorker] init() called');
-                try {
-                    // Resolve the base URL dynamically
-                    const baseUrl = window.location.origin;
-                    
-                    // Prepare worker code with cache busting
-                    // IMPORTANT: Trim leading/trailing whitespace to prevent parse errors
-                    let workerCode = this.workerCodeTemplate.trim();
-                    
-                    // Replace all relative imports with absolute URLs and cache busting
-                    // Cache busting version: 12 - forces browser to reload modules when updated
-workerCode = workerCode.replace(
-                        "from './diff-algorithms.js?v=13'",
-                        `from '${baseUrl}/src/diff-algorithms.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=13'",
-                        `from '${baseUrl}/src/language-detect.js?v=13'`
-                    );
-                    // Also handle old versions that might be cached
-                    workerCode = workerCode.replace(
-                        "from './diff-algorithms.js?v=11'",
-                        `from '${baseUrl}/src/diff-algorithms.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=11'",
-                        `from '${baseUrl}/src/language-detect.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './diff-algorithms.js?v=10'",
-                        `from '${baseUrl}/src/diff-algorithms.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=10'",
-                        `from '${baseUrl}/src/language-detect.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './diff-algorithms.js?v=9'",
-                        `from '${baseUrl}/src/diff-algorithms.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=9'",
-                        `from '${baseUrl}/src/language-detect.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './diff-algorithms.js?v=8'",
-                        `from '${baseUrl}/src/diff-algorithms.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=8'",
-                        `from '${baseUrl}/src/language-detect.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './diff-algorithms.js?v=7'",
-                        `from '${baseUrl}/src/diff-algorithms.js?v=11'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './tree-sitter-loader.js?v=6'",
-                        `from '${baseUrl}/src/tree-sitter-loader.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=6'",
-                        `from '${baseUrl}/src/language-detect.js?v=9'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './tree-sitter-loader.js?v=5'",
-                        `from '${baseUrl}/src/tree-sitter-loader.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=5'",
-                        `from '${baseUrl}/src/language-detect.js?v=9'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './tree-sitter-loader.js?v=3'",
-                        `from '${baseUrl}/src/tree-sitter-loader.js?v=13'`
-                    );
-                    workerCode = workerCode.replace(
-                        "from './language-detect.js?v=3'",
-                        `from '${baseUrl}/src/language-detect.js?v=9'`
-                    );
-                    // Handle block-move-detector.js imports with cache busting
-                    workerCode = workerCode.replace(
-                        "from './block-move-detector.js?v=13'",
-                        `from '${baseUrl}/src/block-move-detector.js?v=13'`
-                    );
-                    // Also handle unversioned block-move-detector.js
-                    workerCode = workerCode.replace(
-                        "from './block-move-detector.js'",
-                        `from '${baseUrl}/src/block-move-detector.js?v=13'`
-                    );
-                    
-                    // Validate worker module before creation
-                    console.log('[DiffWorker] Worker code length:', workerCode.length);
-                    this.validationResult = validateWorkerModule(workerCode, baseUrl);
-                    
-                    // Log validation results for debugging
-                    console.log('[DiffWorker] Module validation:', {
-                        isValid: this.validationResult.isValid,
-                        errors: this.validationResult.errors,
-                        warnings: this.validationResult.warnings,
-                        compatibility: this.validationResult.compatibility
-                    });
-                    
-                    // If validation fails, try graceful degradation
-                    if (!this.validationResult.isValid) {
-                        console.warn('[DiffWorker] Validation failed, checking degradation strategy...');
-                        const strategy = this.validationResult.degradationStrategy;
-                        
-                        if (!strategy.canProceed) {
-                            console.error('[DiffWorker] Worker code that failed validation:');
-                            console.error(workerCode.substring(0, 1000) + '...');
-                            throw new Error(`Worker initialization failed: ${strategy.message}`);
-                        }
-                        
-                        console.info(`[DiffWorker] Using degradation strategy: ${strategy.strategy}`);
-                        // For now, we'll still try to create the worker with potential reduced functionality
-                    }
-                    
-                    // Log warnings if any
-                    if (this.validationResult.warnings.length > 0) {
-                        console.warn('[DiffWorker] Validation warnings:', this.validationResult.warnings);
-                    }
-                    
-                    // Create worker from Blob URL
-                    const blob = new Blob([workerCode], { type: 'application/javascript' });
-                    const blobUrl = URL.createObjectURL(blob);
-                    this.worker = new Worker(blobUrl, { type: 'module' });
-                    
-                    this.worker.onmessage = (e) => {
-                        if (e.data.type === 'complete') {
-                            if (this.pendingPromise) {
-                                this.pendingPromise.resolve(e.data);
-                                this.pendingPromise = null;
-                            }
-                            if (this.onComplete) {
-                                this.onComplete(e.data);
-                            }
-                        } else if (e.data.type === 'error') {
-                            if (this.pendingPromise) {
-                                this.pendingPromise.reject(new Error(e.data.error));
-                                this.pendingPromise = null;
-                            }
-                        }
-                    };
-                    
-                    this.worker.onerror = (error) => {
-                        // Log full error details for debugging
-                        console.error('[DiffWorker] Raw worker error:', error);
-                        console.error('[DiffWorker] Error details:', {
-                            message: error?.message,
-                            filename: error?.filename,
-                            lineno: error?.lineno,
-                            colno: error?.colno,
-                            error: error?.error
-                        });
-                        
-                        // Create enhanced error message with context
-                        const enhancedError = createEnhancedErrorMessage(error, {
-                            isWorker: true,
-                            importPaths: this.validationResult?.paths?.paths || [],
-                            compatibility: this.validationResult?.compatibility || {}
-                        });
-                        
-                        console.error('[DiffWorker] Worker error:', enhancedError);
-                        if (this.pendingPromise) {
-                            this.pendingPromise.reject(new Error(enhancedError));
-                            this.pendingPromise = null;
-                        }
-                    };
-                } catch (error) {
-                    // Create enhanced error message for initialization failure
-                    const enhancedError = createEnhancedErrorMessage(error, {
-                        isWorker: true,
-                        compatibility: this.validationResult?.compatibility || {}
-                    });
-                    
-                    console.error('[DiffWorker] Failed to initialize worker:', enhancedError);
-                    
-                    // Try graceful degradation strategy
-                    if (this.validationResult) {
-                        const strategy = getGracefulDegradationStrategy({
-                            isWorker: true,
-                            importPaths: this.validationResult.paths?.paths || []
-                        });
-                        
-                        console.error('[DiffWorker] Degradation strategy:', strategy);
-                        throw new Error(`${enhancedError} ${strategy.message}`);
-                    } else {
-                        throw enhancedError;
-                    }
-                }
-            }
-            
-            compare(oldText, newText, options = {}) {
-                if (!this.worker) {
-                    return Promise.reject(new Error('Worker not initialized'));
-                }
-                
-                return new Promise((resolve, reject) => {
-                    this.pendingPromise = { resolve, reject };
-                    this.worker.postMessage({ oldText, newText, options });
-                });
-            }
-            
-            /**
-             * Get the validation result from worker initialization
-             * @returns {Object|null} Validation result or null if not validated
-             */
-            getValidationResult() {
-                return this.validationResult;
-            }
-            
-            /**
-             * Check if worker is fully functional (initialized and validated)
-             * @returns {boolean} True if worker is ready for use
-             */
-            isReady() {
-                return this.worker !== null && 
-                       this.validationResult !== null &&
-                       (this.validationResult.isValid || this.validationResult.degradationStrategy?.canProceed);
-            }
-            
-            /**
-             * Get worker health status for debugging
-             * @returns {Object} Health status information
-             */
-            getHealthStatus() {
-                return {
-                    workerExists: this.worker !== null,
-                    validationComplete: this.validationResult !== null,
-                    isReady: this.isReady(),
-                    isValid: this.validationResult?.isValid || false,
-                    hasWarnings: this.validationResult?.warnings?.length > 0 || false,
-                    errorCount: this.validationResult?.errors?.length || 0,
-                    warningCount: this.validationResult?.warnings?.length || 0,
-                    compatibility: this.validationResult?.compatibility || {},
-                    degradationStrategy: this.validationResult?.degradationStrategy?.strategy || 'none'
-                };
-            }
-            
-            terminate() {
-                if (this.worker) {
-                    this.worker.terminate();
-                    this.worker = null;
-                }
-            }
-        }
-        
-        // ============================================================================
         // Main Application Logic
         // ============================================================================
         
@@ -1916,7 +1661,6 @@ workerCode = workerCode.replace(
         const limitWarningText = document.getElementById('limit-warning-text');
 
         // State
-        let diffWorker = null;
         let currentResults = [];
         let currentStats = null;
         let currentChangeIndex = -1;
@@ -2093,7 +1837,7 @@ workerCode = workerCode.replace(
         
         // Version management
         const VERSION = {
-            current: "0.1.15",
+            current: "0.2.0",
             previous: localStorage.getItem("textDiffTool_version") || "0.0.0",
             update: function(newVersion) {
                 this.previous = this.current;
@@ -2111,28 +1855,6 @@ workerCode = workerCode.replace(
                 }
             }
         };
-        
-        // Initialize worker
-        function initWorker() {
-            console.log('[Main] initWorker called');
-            if (!diffWorker) {
-                console.log('[Main] Creating new DiffWorker...');
-                diffWorker = new DiffWorker(WORKER_CODE_TEMPLATE);
-                console.log('[Main] DiffWorker created');
-                
-                // Expose validation functions globally for debugging
-                window.ModuleValidator = {
-                    validateWorkerModule,
-                    getBrowserCompatibility: async () => {
-                        // Import function locally
-                        const validatorModule = await import('./src/module-validator.js?v=9');
-                        return validatorModule.getBrowserCompatibility();
-                    },
-                    getWorkerHealthStatus: () => diffWorker.getHealthStatus(),
-                    getValidationResult: () => diffWorker.getValidationResult()
-                };
-            }
-        }
         
         // Show progress modal
         function showProgressModal() {
@@ -3176,32 +2898,53 @@ workerCode = workerCode.replace(
                         newRow.appendChild(newContent);
                         fragment.appendChild(newRow);
                     }
-                } else if (classification === 'moved') {
-                    // Simple moved line - show both source and destination
-                    const movedRow = document.createElement('div');
-                    movedRow.className = 'unified-row moved';
-                    movedRow.dataset.index = index;
-                    movedRow.dataset.testid = 'unified-row';
+                } else if (classification === 'moved' || classification === 'moved-modified') {
+                    // Simple moved line - show with proper indicators
+                    // Source line (shows <)
+                    const sourceRow = document.createElement('div');
+                    sourceRow.className = 'unified-row block-moved-from';
+                    sourceRow.dataset.index = index;
+                    sourceRow.dataset.testid = 'unified-row';
 
-                    const marker = document.createElement('div');
-                    marker.className = 'unified-marker';
-                    marker.textContent = '→';
+                    const sourceMarker = document.createElement('div');
+                    sourceMarker.className = 'unified-marker';
+                    sourceMarker.textContent = '<';
 
-                    const lineNumDiv = document.createElement('div');
-                    lineNumDiv.className = 'unified-line-num';
-                    lineNumDiv.textContent = '→';
+                    const sourceLineNum = document.createElement('div');
+                    sourceLineNum.className = 'unified-line-num';
+                    sourceLineNum.textContent = '<' + prevLineNum++;
 
-                    const content = document.createElement('div');
-                    content.className = 'unified-content';
-                    content.textContent = '→' + change.value;
+                    const sourceContent = document.createElement('div');
+                    sourceContent.className = 'unified-content';
+                    sourceContent.textContent = ' ' + change.value;
 
-                    movedRow.appendChild(marker);
-                    movedRow.appendChild(lineNumDiv);
-                    movedRow.appendChild(content);
-                    fragment.appendChild(movedRow);
+                    sourceRow.appendChild(sourceMarker);
+                    sourceRow.appendChild(sourceLineNum);
+                    sourceRow.appendChild(sourceContent);
+                    fragment.appendChild(sourceRow);
 
-                    prevLineNum++;
-                    currLineNum++;
+                    // Destination line (shows >)
+                    const destRow = document.createElement('div');
+                    destRow.className = 'unified-row block-moved-to';
+                    destRow.dataset.index = index;
+                    destRow.dataset.testid = 'unified-row';
+
+                    const destMarker = document.createElement('div');
+                    destMarker.className = 'unified-marker';
+                    destMarker.textContent = '>';
+
+                    const destLineNum = document.createElement('div');
+                    destLineNum.className = 'unified-line-num';
+                    destLineNum.textContent = '>' + currLineNum++;
+
+                    const destContent = document.createElement('div');
+                    destContent.className = 'unified-content';
+                    destContent.textContent = ' ' + change.value;
+
+                    destRow.appendChild(destMarker);
+                    destRow.appendChild(destLineNum);
+                    destRow.appendChild(destContent);
+                    fragment.appendChild(destRow);
                 } else if (classification === 'block-moved') {
                     // Block move in unified view
                     // For normal moves: check removed/added flags
@@ -3636,14 +3379,116 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                     }
 
                     case 'moved': {
-                        // Moved line
-                        prevRow.classList.add('removed');
-                        prevLineNumDiv.textContent = prevLineNum++;
-                        prevContentDiv.textContent = '→' + change.value;
-
-                        currRow.classList.add('added');
-                        currLineNumDiv.textContent = currLineNum++;
-                        currContentDiv.textContent = '→' + change.value;
+                        // Moved content - split into individual lines like 'removed'/'added' cases
+                        const movedLines = change.value.split('\n');
+                        const validMovedLines = movedLines.filter((line, idx) => !(line === '' && idx === movedLines.length - 1));
+                        
+                        if (validMovedLines.length === 1) {
+                            // Single line - render normally
+                            prevRow.classList.add('block-moved-from');
+                            prevLineNumDiv.textContent = '<' + prevLineNum++;
+                            prevContentDiv.textContent = ' ' + validMovedLines[0];
+                            
+                            currRow.classList.add('block-moved-to');
+                            currLineNumDiv.textContent = '>' + currLineNum++;
+                            currContentDiv.textContent = ' ' + validMovedLines[0];
+                        } else {
+                            // Multiple lines - create separate rows for each
+                            rowsAppended = true;
+                            
+                            for (const line of validMovedLines) {
+                                // Source row
+                                const sourceRow = document.createElement('div');
+                                sourceRow.className = 'diff-row block-moved-from';
+                                sourceRow.dataset.index = index;
+                                sourceRow.dataset.testid = 'diff-row';
+                                const sourceLineNum = document.createElement('div');
+                                sourceLineNum.className = 'line-number';
+                                const sourceContent = document.createElement('div');
+                                sourceContent.className = 'line-content';
+                                
+                                sourceLineNum.textContent = '<' + prevLineNum++;
+                                sourceContent.textContent = ' ' + line;
+                                
+                                sourceRow.appendChild(sourceLineNum);
+                                sourceRow.appendChild(sourceContent);
+                                prevFragment.appendChild(sourceRow);
+                                
+                                // Destination row
+                                const destRow = document.createElement('div');
+                                destRow.className = 'diff-row block-moved-to';
+                                destRow.dataset.index = index;
+                                destRow.dataset.testid = 'diff-row';
+                                const destLineNum = document.createElement('div');
+                                destLineNum.className = 'line-number';
+                                const destContent = document.createElement('div');
+                                destContent.className = 'line-content';
+                                
+                                destLineNum.textContent = '>' + currLineNum++;
+                                destContent.textContent = ' ' + line;
+                                
+                                destRow.appendChild(destLineNum);
+                                destRow.appendChild(destContent);
+                                currFragment.appendChild(destRow);
+                            }
+                        }
+                        break;
+                    }
+                    
+                    case 'moved-modified': {
+                        // Moved and modified content - split into individual lines
+                        const movedModLines = change.value.split('\n');
+                        const validMovedModLines = movedModLines.filter((line, idx) => !(line === '' && idx === movedModLines.length - 1));
+                        
+                        if (validMovedModLines.length === 1) {
+                            // Single line - render normally
+                            prevRow.classList.add('block-moved-from-modified');
+                            prevLineNumDiv.textContent = '<' + prevLineNum++;
+                            prevContentDiv.textContent = ' ' + validMovedModLines[0];
+                            
+                            currRow.classList.add('block-moved-to-modified');
+                            currLineNumDiv.textContent = '>' + currLineNum++;
+                            currContentDiv.textContent = ' ' + validMovedModLines[0];
+                        } else {
+                            // Multiple lines - create separate rows for each
+                            rowsAppended = true;
+                            
+                            for (const line of validMovedModLines) {
+                                // Source row (purple - modified)
+                                const sourceRow = document.createElement('div');
+                                sourceRow.className = 'diff-row block-moved-from-modified';
+                                sourceRow.dataset.index = index;
+                                sourceRow.dataset.testid = 'diff-row';
+                                const sourceLineNum = document.createElement('div');
+                                sourceLineNum.className = 'line-number';
+                                const sourceContent = document.createElement('div');
+                                sourceContent.className = 'line-content';
+                                
+                                sourceLineNum.textContent = '<' + prevLineNum++;
+                                sourceContent.textContent = ' ' + line;
+                                
+                                sourceRow.appendChild(sourceLineNum);
+                                sourceRow.appendChild(sourceContent);
+                                prevFragment.appendChild(sourceRow);
+                                
+                                // Destination row (purple - modified)
+                                const destRow = document.createElement('div');
+                                destRow.className = 'diff-row block-moved-to-modified';
+                                destRow.dataset.index = index;
+                                destRow.dataset.testid = 'diff-row';
+                                const destLineNum = document.createElement('div');
+                                destLineNum.className = 'line-number';
+                                const destContent = document.createElement('div');
+                                destContent.className = 'line-content';
+                                
+                                destLineNum.textContent = '>' + currLineNum++;
+                                destContent.textContent = ' ' + line;
+                                
+                                destRow.appendChild(destLineNum);
+                                destRow.appendChild(destContent);
+                                currFragment.appendChild(destRow);
+                            }
+                        }
                         break;
                     }
 
@@ -4103,9 +3948,6 @@ currLineNumDiv.textContent = symbol + currLineNum++;
             // Show progress
             const progress = showProgressModal();
             
-            // Initialize worker if needed
-            initWorker();
-            
             const comparisonStartTime = performance.now();
             
             try {
@@ -4114,21 +3956,56 @@ currLineNumDiv.textContent = symbol + currLineNum++;
                     ignoreComments: ignoreCommentsCheckbox?.checked || false
                 };
                 
-                // Prepare AST features for AST-aware comparison (main thread handles Tree-sitter)
+                // Prepare AST features for AST-aware comparison
                 const astFeatures = await prepareDiffWithAST(oldText, newText, detectedLanguage);
                 if (astFeatures) {
-                    console.log('[Main] Passing AST features to worker for enhanced comparison');
+                    console.log('[Main] AST features prepared for enhanced comparison');
                 }
 
-                const result = await diffWorker.compare(oldText, newText, {
+                // Run diff pipeline directly in main thread (simplified architecture)
+                const diffLib = { diffLines, diffWords, diffChars };
+                const lineCount = Math.max(
+                    oldText.split('\n').length,
+                    newText.split('\n').length
+                );
+                
+                const pipelineOptions = {
                     modeToggles: modeToggles,
                     detectMoves: true,
                     filterOptions,
                     config: currentConfig,
-                    astFeatures: astFeatures, // Pass pre-computed AST features
+                    astFeatures: astFeatures,
+                    language: astFeatures ? detectedLanguage : null,
+                    useAST: astFeatures !== null,
+                    totalLines: lineCount,
                     normalizeDelimiters: normalizeDelimitersCheckbox?.checked || false,
                     correctSliders: correctSlidersCheckbox?.checked || false
-                });
+                };
+                
+                const result = await runDiffPipeline(oldText, newText, diffLib, pipelineOptions);
+                
+                // Enhance move detection using Tree-sitter AST parsing
+                // This catches semantic moves (including single/multi-line) that standard pipeline misses
+                // when comments or context change, and handles modified moves
+                if (detectedLanguage && result.results.length < 200 && treeSitterParser) {
+                    console.log('[Main] Running Tree-sitter semantic move detection...');
+                    try {
+                        const enhancedResult = await enhanceDiffWithTreeSitterMoves(
+                            result, 
+                            oldText, 
+                            newText, 
+                            treeSitterParser
+                        );
+                        if (enhancedResult && enhancedResult.stats.moved > result.stats.moved) {
+                            console.log(`[Main] Tree-sitter found ${enhancedResult.stats.moved - result.stats.moved} additional moves`);
+                            result.results = enhancedResult.results;
+                            result.stats = enhancedResult.stats;
+                        }
+                    } catch (tsError) {
+                        console.warn('[Main] Tree-sitter move detection failed:', tsError.message);
+                        // Continue with original results
+                    }
+                }
 
                 // Validate the result before rendering
                 const validation = validateComparisonResult(result);
@@ -4176,7 +4053,13 @@ currLineNumDiv.textContent = symbol + currLineNum++;
         }
         
         /**
-         * Update slider statistics and status display
+         * Enhance diff results using graph diff algorithm
+         * Uses Tree-sitter AST parsing to detect semantic moves that standard pipeline misses
+         * when surrounding context (like comments) changes
+         * 
+         * @param {Object} pipelineResult - Results from runDiffPipeline
+         * @param {string} oldText - Original text
+         * @param {string} newText - Modified text
          * @param {Array} sliderData - Array of slider correction data
          */
         function updateSliderStats(sliderData) {
@@ -4662,14 +4545,14 @@ currLineNumDiv.textContent = symbol + currLineNum++;
 <p><strong>Technology:</strong></p>
 <p>Built with vanilla JavaScript using the <a href="https://github.com/kpdecker/jsdiff" target="_blank" rel="noopener">jsdiff</a> library. All processing happens in your browser via Web Workers.</p>
 <p>&copy; 2025 Jason Tally and contributors. Licensed under MIT.</p>
-            <p>Version: <span id="version-display">0.1.15</span></p>
+            <p>Version: <span id="version-display">0.2.0</span></p>
             `;
             showModal('About', aboutContent);
         };
     </script>
     <footer>
         <div style="text-align: center; margin-top: 20px; padding: 10px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
-            Version: <span id="version-display">0.1.15</span>
+            Version: <span id="version-display">0.2.0</span>
         </div>
     </footer>
 </body>

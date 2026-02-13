@@ -10,6 +10,11 @@
  * - Static site compatible (just serve files via HTTP)
  * - Testable: Same code runs in Node.js and browser
  * 
+ * NOTE: Graph diff algorithm (src/graph-diff.js) runs in the MAIN THREAD, not the worker.
+ * This is because Tree-sitter with WebAssembly doesn't work reliably in Web Worker contexts
+ * due to WASM loading limitations. The main thread runs graph diff first (when enabled),
+ * and falls back to the standard worker pipeline if graph diff fails or isn't applicable.
+ * 
  * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
@@ -66,15 +71,17 @@ self.onmessage = async function(e) {
     
     // Run complete pipeline using extracted algorithms
     const diffLib = { diffLines, diffWords, diffChars };
+    const lineCount = Math.max(
+      oldText.split('\\n').length,
+      newText.split('\\n').length
+    );
+    
     const pipelineOptions = {
       ...options,
       language: useAST ? detectedLanguage : null,
       useAST: useAST,
       astFeatures: astFeatures, // Pass AST features to algorithms
-      totalLines: Math.max(
-        oldText.split('\\n').length,
-        newText.split('\\n').length
-      ),
+      totalLines: lineCount,
       // Pass config from options (includes maxLines, maxGraphVertices, etc.)
       config: options.config || undefined
     };

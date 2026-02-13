@@ -4,7 +4,7 @@ A free, private text comparison tool for developers, network engineers, and writ
 
 **Production URL**: [https://diff.jasontally.com](https://diff.jasontally.com) - Use it instantly, no install required  
 **License**: MIT (Copyright (c) 2026 Jason Tally and contributors)  
-**Version**: 0.1.15
+**Version**: 0.2.0
 
 ---
 
@@ -213,6 +213,36 @@ Requires ES Module Web Workers. Will not work in IE11 or older browsers.
 
 ---
 
+## Troubleshooting
+
+### Debug Mode
+
+If you encounter issues with content disappearing or incorrect diff results, you can enable detailed debug logging:
+
+**For Developers**:
+1. Open browser DevTools console
+2. Run: `localStorage.setItem('diffDebug', 'true')`
+3. Reload the page
+4. Check the console for detailed pipeline logging
+
+**Running Tests with Debug Output**:
+```bash
+npm test -- tests/test-content-preservation.test.js
+```
+
+This will run tests that verify all input lines appear in the output.
+
+**Common Issues**:
+- **Lines missing**: Usually indicates a bug in the diff pipeline classification logic
+- **Incorrect move detection**: Check if content has different surrounding context (comments/whitespace)
+- **Performance issues**: Large files (>10k lines) may use fast mode with reduced accuracy
+
+For detailed debugging information, see:
+- `AGENTS.md` - Section on "Debugging the Diff Pipeline"
+- `ARCHITECTURE.md` - Section on "Debugging and Diagnostics"
+
+---
+
 ## Contributing
 
 Contributions welcome! Please read the code conventions and testing guidelines in the source.
@@ -220,4 +250,4 @@ Contributions welcome! Please read the code conventions and testing guidelines i
 **Copyright (c) 2026 Jason Tally and contributors**  
 **License**: MIT (see [LICENSE](./LICENSE))
 
-Created by Jason Tally | [MIT License](./LICENSE) | Version 0.1.15
+Created by Jason Tally | [MIT License](./LICENSE) | Version 0.2.0

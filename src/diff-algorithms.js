@@ -6,9 +6,94 @@
  * as a parameter, allowing them to work in both browser (CDN) and 
  * Node.js (npm) environments.
  * 
+ * DEBUGGING: Set DEBUG_PIPELINE = true to enable detailed logging
+ * throughout the diff pipeline for troubleshooting content loss issues.
+ * 
  * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
  */
+
+// ============================================================================
+// Debug Configuration
+// ============================================================================
+
+/**
+ * DEBUG FLAG: Set to true to enable detailed pipeline logging
+ * 
+ * When enabled, the pipeline will log:
+ * - Entry/exit points of each processing stage
+ * - Content counts at each transformation
+ * - Specific lines being processed or dropped
+ * - Classification changes
+ * 
+ * To enable debugging:
+ * 1. In browser: Open DevTools console and run: localStorage.setItem('diffDebug', 'true')
+ * 2. In tests: Set DEBUG_PIPELINE = true below
+ * 3. In Node.js: Set environment variable: DEBUG_DIFF=1
+ */
+const DEBUG_PIPELINE = false; // Set to true to enable debug logging
+
+/**
+ * Logger function that respects DEBUG flag
+ * @param {string} stage - Processing stage name
+ * @param {string} message - Log message
+ * @param {Object} data - Optional data to log
+ */
+function debugLog(stage, message, data = null) {
+  if (!DEBUG_PIPELINE) return;
+  
+  const prefix = `[DiffPipeline:${stage}]`;
+  if (data) {
+    console.log(prefix, message, data);
+  } else {
+    console.log(prefix, message);
+  }
+}
+
+/**
+ * Log content statistics at a pipeline stage
+ * @param {string} stage - Stage name
+ * @param {Array} results - Diff results array
+ * @param {string} context - Additional context
+ */
+function debugContentStats(stage, results, context = '') {
+  if (!DEBUG_PIPELINE) return;
+  
+  const stats = {
+    totalEntries: results.length,
+    added: results.filter(r => r.added).length,
+    removed: results.filter(r => r.removed).length,
+    unchanged: results.filter(r => !r.added && !r.removed).length,
+    totalLines: results.reduce((sum, r) => sum + r.value.split('\n').filter(l => l.length > 0).length, 0)
+  };
+  
+  debugLog(stage, `Content stats${context ? ' ' + context : ''}:`, stats);
+}
+
+/**
+ * Search for specific content in results
+ * @param {string} stage - Stage name  
+ * @param {Array} results - Results to search
+ * @param {string} searchText - Text to search for
+ */
+function debugSearchContent(stage, results, searchText) {
+  if (!DEBUG_PIPELINE) return;
+  
+  let foundCount = 0;
+  results.forEach((entry, idx) => {
+    const lines = entry.value.split('\n');
+    lines.forEach((line, lineIdx) => {
+      if (line.includes(searchText)) {
+        debugLog(stage, `Found "${searchText.substring(0, 30)}..." in entry[${idx}] line[${lineIdx}]`);
+        foundCount++;
+      }
+    });
+  });
+  
+  if (foundCount === 0) {
+    debugLog(stage, `WARNING: "${searchText.substring(0, 30)}..." NOT FOUND`);
+  }
+}
 
 // Import token-based similarity functions
 import { compareLines, TOKEN_TYPES } from './tokenizer.js';
@@ -286,7 +371,7 @@ export function calculateSimilarity(lineA, lineB, diffWords, options = {}) {
  * @returns {number} Similarity score 0.0 to 1.0
  */
 export function calculateSimilarityEnhanced(lineA, lineB, diffWords, options = {}) {
-  const useTokenSimilarity = options.useTokenSimilarity ?? false; // Disabled for now
+  const useTokenSimilarity = options.useTokenSimilarity ?? false; // Disabled: 30-150x slower and lower accuracy than word similarity
   const tokenWeight = options.tokenWeight ?? CONFIG.TOKEN_WEIGHT;
   const language = options.language ?? null;
   const shouldNormalize = options.normalizeDelimiters ?? false;
@@ -561,6 +646,9 @@ export function identifyChangeBlocks(diffResults) {
  * When diffLines marks content as "unchanged" but it's at a different position,
  * we can detect it as a move by comparing line positions in old vs new text.
  * 
+ * This is particularly useful for detecting block moves where the content is 
+ * identical but appears at a different location in the file.
+ * 
  * @param {Array} diffResults - Raw diff output from diffLines()
  * @param {string} oldText - Original text
  * @param {string} newText - Modified text  
@@ -598,12 +686,17 @@ export function detectMovesInUnchangedLines(diffResults, oldText, newText) {
   }
   
   // Group consecutive unchanged lines that moved (oldIndex != newIndex)
+  // Only consider it a "move" if position shift is > 5 lines AND block size >= 3
+  // This prevents false positives from simple insertions/deletions nearby
   let currentBlock = null;
+  const MIN_BLOCK_SIZE = 3;
+  const MIN_POSITION_SHIFT = 5;
+  
   for (const entry of unchangedEntries) {
     const positionShift = entry.newIndex - entry.oldIndex;
     
-    if (positionShift !== 0) {
-      // This line moved - either join existing block or start new one
+    if (Math.abs(positionShift) >= MIN_POSITION_SHIFT) {
+      // This line moved significantly - either join existing block or start new one
       if (currentBlock && 
           Math.abs(entry.diffIndex - currentBlock.endDiffIndex) <= 2 &&
           entry.newIndex === currentBlock.expectedNewIndex) {
@@ -616,7 +709,7 @@ export function detectMovesInUnchangedLines(diffResults, oldText, newText) {
         currentBlock.newLinePositions.push(entry.newIndex);
       } else {
         // Start new block
-        if (currentBlock && currentBlock.removed.length >= 3) {
+        if (currentBlock && currentBlock.removed.length >= MIN_BLOCK_SIZE) {
           virtualBlocks.push(currentBlock);
         }
         currentBlock = {
@@ -631,8 +724,8 @@ export function detectMovesInUnchangedLines(diffResults, oldText, newText) {
         };
       }
     } else {
-      // Line didn't move - close current block if it exists
-      if (currentBlock && currentBlock.removed.length >= 3) {
+      // Line didn't move significantly - close current block if it exists
+      if (currentBlock && currentBlock.removed.length >= MIN_BLOCK_SIZE) {
         virtualBlocks.push(currentBlock);
       }
       currentBlock = null;
@@ -640,7 +733,7 @@ export function detectMovesInUnchangedLines(diffResults, oldText, newText) {
   }
   
   // Don't forget the last block
-  if (currentBlock && currentBlock.removed.length >= 3) {
+  if (currentBlock && currentBlock.removed.length >= MIN_BLOCK_SIZE) {
     virtualBlocks.push(currentBlock);
   }
   
@@ -1035,6 +1128,9 @@ async function computeNestedDiffs(pairing, diffWords, language) {
  * @returns {Array} Results with 'added', 'removed', 'modified', or 'unchanged' classification
  */
 export async function detectModifiedLines(diffResults, diffWords, diffChars, options = {}, oldText = '', newText = '') {
+  debugLog('detectModifiedLines', 'START', { inputEntries: diffResults?.length });
+  debugContentStats('detectModifiedLines:input', diffResults, 'START');
+  
   const blocks = identifyChangeBlocks(diffResults);
   const allPairings = [];
   const modeToggles = options.modeToggles || { lines: true, words: true, chars: true };
@@ -1280,6 +1376,7 @@ export async function detectModifiedLines(diffResults, diffWords, diffChars, opt
     }
   }
   
+  debugContentStats('detectModifiedLines:output', classified, 'EXIT');
   return classified;
 }
 
@@ -1318,14 +1415,22 @@ export function calculateStats(classifiedResults) {
  * than what was removed, it should be marked as `added: true`.
  * 
  * Detection logic for bug #2: If we have a removed entry followed by an added entry where
- * the added entry contains the removed content as a prefix, split the added entry into
- * unchanged (the common part) and added (the new part).
+ * the added entry contains the removed content as a prefix, AND the removed content still
+ * exists in the new file (appears elsewhere), split the added entry into
+ * unchanged (the common part) and added (the new part). If the removed content doesn't appear
+ * in the new file, it's a legitimate removal - don't modify it.
  * 
  * @param {Array} diffResults - Raw diff output from diffLines()
- * @param {string} oldText - Original text for comparison
+ * @param {string} oldText - Original (right side) text where content was removed from
+ * @param {string} newText - New (left side) text where content was added to
  * @returns {Array} Corrected diff results with proper added flags
  */
-export function fixDiffLinesClassification(diffResults, oldText) {
+export function fixDiffLinesClassification(diffResults, oldText, newText = '') {
+  debugLog('fixDiffLinesClassification', 'START', { 
+    inputEntries: diffResults?.length,
+    oldTextLines: oldText?.split('\n').length 
+  });
+  
   if (!diffResults || diffResults.length === 0) {
     return diffResults;
   }
@@ -1335,11 +1440,22 @@ export function fixDiffLinesClassification(diffResults, oldText) {
   let removedContent = '';
   const oldLines = oldText ? oldText.split('\n') : [];
   let oldLineIndex = 0;
+  
+  // Track modifications for debugging
+  let modifications = 0;
+  let entriesDropped = 0;
 
   for (let i = 0; i < diffResults.length; i++) {
     const entry = diffResults[i];
     const isUnchanged = !entry.added && !entry.removed;
     const entryValue = entry.value || '';
+    const entryLines = entryValue.split('\n').filter(l => l.length > 0);
+    
+    // Debug: Track entries 15-16 specifically
+    if (i >= 14 && i <= 17) {
+      const type = entry.added ? 'added' : entry.removed ? 'removed' : 'unchanged';
+      debugLog('fixDiffLinesClassification', `Processing entry ${i} [${type}, ${entryLines.length} lines]: "${entryValue.substring(0, 40)}...", lastWasRemoved: ${lastWasRemoved}`);
+    }
 
     // Track if this entry was originally in old text
     if (entry.removed) {
@@ -1354,19 +1470,34 @@ export function fixDiffLinesClassification(diffResults, oldText) {
       oldLineIndex += removedLines.length;
     } else if (isUnchanged && lastWasRemoved) {
       // Check if this "unchanged" content is actually new
-      // It's new if it doesn't match the removed content and
-      // it's not present in the old text at the current position
-      const isActuallyNew = entryValue !== removedContent &&
-        (oldLineIndex >= oldLines.length || 
-         oldLines[oldLineIndex].trim() !== entryValue.trim());
+      // It's new if it doesn't match the removed content AND
+      // it doesn't appear anywhere in the old text (meaning it's truly new content)
+      // 
+      // BUG FIX: Previously this only checked oldLines[oldLineIndex], which failed
+      // when content moved positionally. Now we check if content exists anywhere
+      // in oldText to avoid misclassifying moved content as new.
+      const contentExistsInOldText = oldText.includes(entryValue) ||
+        oldLines.some(line => line.trim() === entryValue.trim());
+      
+      const isActuallyNew = entryValue !== removedContent && !contentExistsInOldText;
       
       if (isActuallyNew) {
         // This should be marked as added, not unchanged
+        debugLog('fixDiffLinesClassification', `Entry ${i}: Reclassifying as 'added' (was 'unchanged')`, {
+          line: entryValue.substring(0, 50),
+          oldLineIndex,
+          contentExistsInOldText
+        });
+        modifications++;
         corrected.push({
           ...entry,
           added: true
         });
       } else {
+        debugLog('fixDiffLinesClassification', `Entry ${i}: Keeping as 'unchanged' (content exists in old text)`, {
+          line: entryValue.substring(0, 50),
+          contentExistsInOldText
+        });
         corrected.push(entry);
         lastWasRemoved = false;
       }
@@ -1378,6 +1509,11 @@ export function fixDiffLinesClassification(diffResults, oldText) {
       }
       oldLineIndex += unchangedLines.length;
     } else if (entry.added && lastWasRemoved && removedContent) {
+      // Debug: Track this path for entries 15-16
+      if (i >= 15 && i <= 17) {
+        debugLog('fixDiffLinesClassification', `Entry ${i}: In 'added && lastWasRemoved' path`);
+      }
+      
       // Bug #2: Check if the added entry contains the removed content as a complete line match
       // This happens when diffLines incorrectly marks unchanged content as removed
       // Only apply this fix when the removed content matches a complete line in the added content
@@ -1396,14 +1532,43 @@ export function fixDiffLinesClassification(diffResults, oldText) {
       
       // Only split if: 1) added starts with removed, AND 2) there's more content after
       // AND 3) the removed content ends with a newline in the added value
+      // AND 4) the removed content appears elsewhere in the new file (proving it wasn't actually removed)
       // This ensures we're only fixing the case where a new line was added after existing content
       const addedStartsWithRemoved = addedValue.startsWith(removedPrefix);
       const hasMoreContent = addedValue.length > removedPrefix.length;
       const newlineAfterPrefix = addedValue.charAt(removedPrefix.length) === '\n';
       
-      if (addedStartsWithRemoved && hasMoreContent && newlineAfterPrefix) {
+      // CRITICAL FIX: Check if removed content actually appears in new file
+      // If removedContent doesn't appear in newText at all, it's a legitimate removal - don't pop it
+      // This prevents losing content that was truly removed (e.g., lines 28-29 in the bug case)
+      const removedContentAppearsInNewFile = newText && newText.includes(removedContent);
+      
+      // Debug: Show decision factors for entries 15-17
+      if (i >= 15 && i <= 17) {
+        debugLog('fixDiffLinesClassification', `Entry ${i}: Decision factors`, {
+          addedStartsWithRemoved,
+          hasMoreContent,
+          newlineAfterPrefix,
+          removedContentAppearsInNewFile,
+          removedPrefix: removedPrefix.substring(0, 40),
+          addedValue: addedValue.substring(0, 40)
+        });
+      }
+      
+      // Only apply the fix if we're confident it's a misclassification (removed content still exists in new file)
+      if (addedStartsWithRemoved && hasMoreContent && newlineAfterPrefix && removedContentAppearsInNewFile) {
         // The removed content is actually unchanged - convert the removed entry to unchanged
         // and split the added entry into unchanged (common part) and added (new part)
+        
+        // DEBUG: Log what we're about to pop
+        const entryToPop = corrected[corrected.length - 1];
+        const entryToPopLines = entryToPop.value.split('\n').filter(l => l.length > 0);
+        debugLog('fixDiffLinesClassification', `Entry ${i}: POPPING previous entry (index ${corrected.length - 1})`, {
+          poppedLines: entryToPopLines.length,
+          poppedContent: entryToPop.value.substring(0, 60),
+          removedContentMatch: entryToPop.value === removedContent
+        });
+        entriesDropped += entryToPopLines.length;
         
         // Remove the last "removed" entry and replace with "unchanged"
         corrected.pop();
@@ -1425,6 +1590,7 @@ export function fixDiffLinesClassification(diffResults, oldText) {
         
         lastWasRemoved = false;
       } else if (removedLines.length > addedLines.length) {
+        // PATH C2: removed longer than added
         // Check if the last N lines of removed match added lines exactly
         // This handles the case where lines are removed from the end
         // e.g., old: "line one\nline to remove", new: "line one"
@@ -1434,6 +1600,15 @@ export function fixDiffLinesClassification(diffResults, oldText) {
         
         // Check if the first part of removed matches added exactly
         if (removedPrefixValue === addedValue) {
+          // DEBUG: Log what we're about to pop  
+          const entryToPop2 = corrected[corrected.length - 1];
+          const entryToPop2Lines = entryToPop2.value.split('\n').filter(l => l.length > 0);
+          debugLog('fixDiffLinesClassification', `Entry ${i}: POPPING previous entry (suffix case)`, {
+            poppedLines: entryToPop2Lines.length,
+            poppedContent: entryToPop2.value.substring(0, 60)
+          });
+          entriesDropped += entryToPop2Lines.length;
+          
           // Remove the last "removed" entry
           corrected.pop();
           
@@ -1453,8 +1628,13 @@ export function fixDiffLinesClassification(diffResults, oldText) {
           });
           
           lastWasRemoved = false;
+        } else {
+          // PATH C2 no match: push entry anyway (don't lose it!)
+          corrected.push(entry);
+          lastWasRemoved = false;
         }
       } else {
+        // PATH D: added && lastWasRemoved but no match - push entry
         corrected.push(entry);
         lastWasRemoved = false;
       }
@@ -1472,6 +1652,16 @@ export function fixDiffLinesClassification(diffResults, oldText) {
       }
     }
   }
+
+  // Summary log
+  debugLog('fixDiffLinesClassification', 'SUMMARY', {
+    inputEntries: diffResults.length,
+    outputEntries: corrected.length,
+    modifications,
+    entriesDropped,
+    lineCountChange: diffResults.reduce((sum, r) => sum + r.value.split('\n').filter(l => l.length > 0).length, 0) - 
+                     corrected.reduce((sum, r) => sum + r.value.split('\n').filter(l => l.length > 0).length, 0)
+  });
 
   return corrected;
 }
@@ -1651,7 +1841,8 @@ export async function processChangedRegion(region, diffLib, options = {}) {
   const rawResults = diffLines(oldText, newText);
   
   // Post-process to fix diffLines classification bug
-  const fixedResults = fixDiffLinesClassification(rawResults, oldText);
+  // Pass both oldText (right side) and newText (left side) to enable content preservation check
+  const fixedResults = fixDiffLinesClassification(rawResults, oldText, newText);
   
   // Run modified line detection pipeline (async)
   const classified = await detectModifiedLines(fixedResults, diffWords, diffChars, {
@@ -1979,7 +2170,8 @@ export async function runFastMode(oldText, newText, diffLib, limitInfo, options 
   const rawResults = diffLines(oldText, newText);
   
   // Fix any classification issues
-  const results = fixDiffLinesClassification(rawResults, oldText);
+  // Pass both oldText and newText to enable content preservation check
+  const results = fixDiffLinesClassification(rawResults, oldText, newText);
   
   // Simple classification without detailed similarity analysis
   const classified = results.map(change => {
@@ -2067,6 +2259,20 @@ export async function runFastMode(oldText, newText, diffLib, limitInfo, options 
 export async function runDiffPipeline(oldText, newText, diffLib, options = {}) {
   const { diffLines, diffWords, diffChars } = diffLib;
   
+  // Debug: Log pipeline entry
+  debugLog('runDiffPipeline', 'START', {
+    oldTextLength: oldText.length,
+    newTextLength: newText.length,
+    oldLines: oldText.split('\n').length,
+    newLines: newText.split('\n').length
+  });
+  
+  // Check if debugging is enabled via options or environment
+  const debugMode = options?.debug || DEBUG_PIPELINE;
+  if (debugMode && !DEBUG_PIPELINE) {
+    console.log('[DiffPipeline] Debug mode enabled via options');
+  }
+  
   // Clear content hash cache before starting new diff operation
   clearContentHashCache();
 
@@ -2093,6 +2299,8 @@ export async function runDiffPipeline(oldText, newText, diffLib, options = {}) {
     const enableFastMode = config.ENABLE_FAST_MODE !== false && config.enableFastMode !== false;
     
     if (limitCheck.exceeded && enableFastMode) {
+      debugLog('runDiffPipeline', 'Using fast mode due to complexity limits');
+      
       // Fall back to fast mode (async)
       const fastResult = await runFastMode(processedOldText, processedNewText, diffLib, limitCheck, options);
       
@@ -2106,6 +2314,7 @@ export async function runDiffPipeline(oldText, newText, diffLib, options = {}) {
         fastResult.cacheStats = getCacheStats();
       }
       
+      debugContentStats('runDiffPipeline:fastMode', fastResult.results, 'EXIT');
       return fastResult;
     }
     
@@ -2113,6 +2322,8 @@ export async function runDiffPipeline(oldText, newText, diffLib, options = {}) {
     const totalLines = oldLines.length + newLines.length;
     const twoPassThreshold = options?.twoPassThreshold ?? 100;
     const useTwoPass = options?.useTwoPass ?? (totalLines > twoPassThreshold);
+    
+    debugLog('runDiffPipeline', `Using ${useTwoPass ? 'two-pass' : 'single-pass'} mode`, { totalLines });
     
     let result;
     
@@ -2136,6 +2347,7 @@ export async function runDiffPipeline(oldText, newText, diffLib, options = {}) {
       result.cacheStats = getCacheStats();
     }
     
+    debugContentStats('runDiffPipeline', result.results, 'EXIT');
     return result;
     
   } finally {
@@ -2158,23 +2370,40 @@ export async function runDiffPipeline(oldText, newText, diffLib, options = {}) {
 async function runSinglePassDiff(processedOldText, processedNewText, diffLib, options, modeToggles) {
   const { diffLines, diffWords, diffChars } = diffLib;
   
+  debugLog('runSinglePassDiff', 'START');
+  
   // Detect language for nested diff processing
   const language = detectCommonLanguage(processedOldText, processedNewText);
   
   // Run primary diff - always use line-level for the main comparison
+  debugLog('runSinglePassDiff', 'Running diffLines...');
   const rawResults = diffLines(processedOldText, processedNewText);
+  debugContentStats('runSinglePassDiff:raw', rawResults, 'after diffLines');
 
   // Detect moves in unchanged lines BEFORE fixDiffLinesClassification
   // (fixDiffLinesClassification can incorrectly mark moved content as added)
   const virtualMoveBlocks = (options?.detectMoves !== false)
     ? detectMovesInUnchangedLines(rawResults, processedOldText, processedNewText)
     : [];
+  
+  debugLog('runSinglePassDiff', `Virtual move blocks detected: ${virtualMoveBlocks.length}`);
 
   // Post-process to fix diffLines classification bug (v5.1.0)
-  const results = fixDiffLinesClassification(rawResults, processedOldText);
+  debugLog('runSinglePassDiff', 'Running fixDiffLinesClassification...');
+  // Pass both processedOldText (right) and processedNewText (left) to enable content preservation
+  const results = fixDiffLinesClassification(rawResults, processedOldText, processedNewText);
+  debugContentStats('runSinglePassDiff:fixed', results, 'after fixDiffLinesClassification');
+  
+  // Check if content was lost during classification fix
+  const rawLineCount = rawResults.reduce((sum, r) => sum + r.value.split('\n').filter(l => l.length > 0).length, 0);
+  const fixedLineCount = results.reduce((sum, r) => sum + r.value.split('\n').filter(l => l.length > 0).length, 0);
+  if (rawLineCount !== fixedLineCount) {
+    debugLog('runSinglePassDiff', `WARNING: Line count changed! Raw: ${rawLineCount}, Fixed: ${fixedLineCount}`);
+  }
 
   // Run modified line detection pipeline with mode toggles (async)
   // Pass virtual blocks so they can be included in move detection
+  debugLog('runSinglePassDiff', 'Running detectModifiedLines...');
   const classified = await detectModifiedLines(results, diffWords, diffChars, {
     detectMoves: options?.detectMoves,
     fastThreshold: options?.fastThreshold,
@@ -2184,6 +2413,8 @@ async function runSinglePassDiff(processedOldText, processedNewText, diffLib, op
     normalizeDelimiters: options?.normalizeDelimiters,
     _virtualMoveBlocks: virtualMoveBlocks
   }, processedOldText, processedNewText);
+  
+  debugContentStats('runSinglePassDiff:classified', classified, 'after detectModifiedLines');
 
   // Apply slider correction if enabled
   let finalResults = classified;

@@ -21,7 +21,7 @@ function movedFunction() {
     return true;
 }`;
 
-  const fixedResults = fixDiffLinesClassification(diffLines(original, modified), original);
+  const fixedResults = fixDiffLinesClassification(diffLines(original, modified), original, modified);
   
   console.log('\n=== TRACKING LINE POSITIONS ===');
   let oldLineNum = 0;
