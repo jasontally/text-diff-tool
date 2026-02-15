@@ -79,11 +79,6 @@ export async function initTreeSitter() {
   
   initPromise = (async () => {
     try {
-      // In restricted worker contexts, CDN imports may fail - handle gracefully
-      if (isRestrictedWorkerContext()) {
-        throw new Error('CDN imports not supported in restricted worker contexts');
-      }
-      
       // Dynamically import web-tree-sitter from CDN
       // URL is split to prevent static analysis from trying to validate the CDN import in Node.js
       const cdnBase = 'https://cdn.jsdelivr.net/npm/web-tree-sitter@0.25.10';
@@ -255,22 +250,6 @@ export function getCacheStats() {
 }
 
 /**
- * Check if we're in a Web Worker context that may have restricted dynamic imports
- * @returns {boolean}
- */
-function isRestrictedWorkerContext() {
-  // Check if we're in a Worker context (has self but not window)
-  const inWorker = typeof self !== 'undefined' && typeof window === 'undefined';
-  if (!inWorker) {
-    return false;
-  }
-  
-  // In some browser environments, dynamic imports from CDNs fail in blob-based workers
-  // This is a known limitation in certain security contexts
-  return true;
-}
-
-/**
  * Check if Tree-sitter is available in this environment
  * Tests for WebAssembly support and basic functionality
  * 
@@ -283,12 +262,6 @@ export async function isTreeSitterAvailable() {
       return false;
     }
     
-    // Skip initialization in restricted worker contexts where CDN imports may fail
-    if (isRestrictedWorkerContext()) {
-      console.log('[TreeSitter] Skipping initialization in restricted worker context');
-      return false;
-    }
-    
     // Try to initialize
     await initTreeSitter();
     return true;
@@ -296,6 +269,102 @@ export async function isTreeSitterAvailable() {
     console.warn('[TreeSitter] Not available:', error.message);
     return false;
   }
+}
+
+/**
+ * Detect language by attempting to parse with tree-sitter parsers
+ * Returns the language with the best parse (most complete tree)
+ * This is more accurate than regex-based detection for code
+ * 
+ * @param {string} content - Code content to analyze
+ * @param {Array<string>} languages - Optional list of languages to try (default: common languages)
+ * @returns {Promise<string|null>} Detected language or null
+ */
+export async function detectLanguageWithTreeSitter(content, languages = null) {
+  if (!content || content.trim().length < 10) {
+    return null;
+  }
+  
+  const langsToTry = languages || ['javascript', 'python', 'typescript', 'java', 'go', 'rust', 'c', 'cpp', 'bash', 'json'];
+  
+  let bestLanguage = null;
+  let bestScore = -1;
+  
+  for (const language of langsToTry) {
+    if (!LANGUAGE_URLS[language]) continue;
+    
+    try {
+      const parser = await getLanguageParser(language);
+      if (!parser) continue;
+      
+      // Try to parse the content
+      const tree = parser.parse(content);
+      if (!tree || !tree.rootNode) continue;
+      
+      // Check for parse errors
+      const hasError = tree.rootNode.hasError();
+      const nodeCount = countNodes(tree.rootNode);
+      const charCount = content.length;
+      
+      // Calculate a score: more nodes = better parse, penalize errors
+      let score = nodeCount / Math.max(1, charCount / 10);
+      if (hasError) {
+        score *= 0.5; // Penalize languages with parse errors
+      }
+      
+      // Bonus for complete parse (root node covers entire content)
+      if (tree.rootNode.endIndex === content.length) {
+        score *= 1.5;
+      }
+      
+      // Bonus for specific language indicators
+      if (language === 'python' && content.includes('#')) score *= 1.3; // Python comments
+      if (language === 'javascript' || language === 'typescript') {
+        if (/\b(const|let|var|function|class|import|export)\b/.test(content)) score *= 1.2;
+      }
+      if (language === 'java') {
+        if (/\b(public|private|class|void|static)\b/.test(content)) score *= 1.2;
+      }
+      if (language === 'go') {
+        if (/\b(package|func|import|type)\b/.test(content)) score *= 1.2;
+      }
+      if (language === 'rust') {
+        if (/\b(fn|let|mut|impl|struct|enum)\b/.test(content)) score *= 1.2;
+      }
+      if (language === 'bash') {
+        if (/^#!|\b(echo|export|if|then|fi|done)\b/.test(content)) score *= 1.3;
+      }
+      if (language === 'json') {
+        if (/^[\[\{]/.test(content.trim())) score *= 1.5;
+      }
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestLanguage = language;
+      }
+      
+      tree.delete();
+    } catch (error) {
+      // Skip languages that fail to parse
+      continue;
+    }
+  }
+  
+  // Only return if we have a reasonable score
+  return bestScore > 0 ? bestLanguage : null;
+}
+
+/**
+ * Count nodes in a tree (for scoring)
+ */
+function countNodes(node) {
+  let count = 1;
+  let child = node.firstChild;
+  while (child) {
+    count += countNodes(child);
+    child = child.nextSibling;
+  }
+  return count;
 }
 
 export default {
@@ -307,5 +376,6 @@ export default {
   clearLanguageCache,
   getCacheStats,
   isTreeSitterAvailable,
-  SUPPORTED_LANGUAGES
+  SUPPORTED_LANGUAGES,
+  detectLanguageWithTreeSitter
 };

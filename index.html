@@ -9,8 +9,7 @@
     <meta name="author" content="Jason Tally">
     <link rel="canonical" href="https://diff.jasontally.com">
     <meta name="url" content="https://diff.jasontally.com">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <meta name="generator" content="Text Diff Tool v0.2.1">
+    <meta name="generator" content="Text Diff Tool v0.2.2">
     <meta name="url" content="https://diff.jasontally.com">
     <meta property="og:title" content="Text Diff Tool - Compare Code & Config Files Online | Free & Private">
     <meta property="og:description" content="Free online text diff tool. 100% private - your data never leaves your browser. No signup required.">
@@ -1245,40 +1244,6 @@
             </div>
             <div class="config-grid">
                 <div class="config-group">
-                    <label for="max-lines" id="max-lines-label">Max Lines</label>
-                    <input type="number" id="max-lines" min="1000" max="200000" step="1000" aria-labelledby="max-lines-label" aria-describedby="max-lines-desc">
-                    <span class="config-description" id="max-lines-desc">Maximum lines per file (1,000-200,000). Exceeding this falls back to fast mode.</span>
-                </div>
-                <div class="config-group">
-                    <label for="max-graph-vertices" id="max-graph-vertices-label">Max Graph Vertices</label>
-                    <input type="number" id="max-graph-vertices" min="1000" max="1000000" step="1000" aria-labelledby="max-graph-vertices-label" aria-describedby="max-graph-vertices-desc">
-                    <span class="config-description" id="max-graph-vertices-desc">Maximum vertices for graph-based diff (1,000-1,000,000). Exceeding this falls back to fast mode.</span>
-                </div>
-                <div class="config-group">
-                    <label for="max-bytes" id="max-bytes-label">Byte Limit</label>
-                    <input type="number" id="max-bytes" min="100000" max="10000000" step="100000" aria-labelledby="max-bytes-label" aria-describedby="max-bytes-desc">
-                    <span class="config-description" id="max-bytes-desc">Maximum file size in bytes (100KB-10MB)</span>
-                </div>
-                <div class="config-group">
-                    <label for="ast-line-threshold" id="ast-line-threshold-label">AST Threshold</label>
-                    <input type="number" id="ast-line-threshold" min="100" max="10000" step="100" aria-labelledby="ast-line-threshold-label" aria-describedby="ast-line-threshold-desc">
-                    <span class="config-description" id="ast-line-threshold-desc">Line threshold for AST analysis (100-10,000)</span>
-                </div>
-                <div class="config-group">
-                    <label for="enable-ast" id="enable-ast-label">
-                        <input type="checkbox" id="enable-ast" aria-labelledby="enable-ast-label enable-ast-desc">
-                        Enable AST
-                    </label>
-                    <span class="config-description" id="enable-ast-desc">Parse code structure for semantic comparison</span>
-                </div>
-                <div class="config-group">
-                    <label for="enable-graph-diff" id="enable-graph-diff-label">
-                        <input type="checkbox" id="enable-graph-diff" aria-labelledby="enable-graph-diff-label enable-graph-diff-desc">
-                        Enable Graph Diff
-                    </label>
-                    <span class="config-description" id="enable-graph-diff-desc">Use graph algorithms for complex diffs</span>
-                </div>
-                <div class="config-group">
                     <label for="enable-fast-mode" id="enable-fast-mode-label">
                         <input type="checkbox" id="enable-fast-mode" aria-labelledby="enable-fast-mode-label enable-fast-mode-desc">
                         Enable Fast Mode
@@ -1446,9 +1411,12 @@
         </section>
     </main>
     
-    <footer>
+    <footer aria-label="Copyright">
         <div class="footer-copyright" style="font-size: 14px; color: var(--text-secondary);">
             Free text diff tool - Compare code & config files privately
+        </div>
+        <div style="text-align: center; margin-top: 20px; padding: 10px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
+            Version: <span id="version-display">0.2.2</span>
         </div>
     </footer>
     </div>
@@ -1465,25 +1433,24 @@
         console.log('[Main] Script module starting...');
         
         // Import language detection for syntax highlighting
-        import { detectLanguage } from './src/language-detect.js?v=9';
+        import { detectLanguage, detectLanguageAsync } from './src/language-detect.js?v=9';
         console.log('[Main] language-detect imported');
         
         // Import module validation system
         // Cache busting version: 9 - forces browser to reload when updated
         import { 
-            validateWorkerModule, 
             createEnhancedErrorMessage, 
             getGracefulDegradationStrategy,
             addCacheBusting 
         } from './src/module-validator.js?v=9';
         console.log('[Main] module-validator imported');
         
-        // Import diff library for main thread execution (replacing Web Worker)
+        // Import diff library for main thread execution
         import { diffLines, diffWords, diffChars } from 'https://esm.sh/diff@5.1.0';
         console.log('[Main] diff library imported');
         
         // Import diff pipeline algorithms for main thread execution
-        import { runDiffPipeline } from './src/diff-algorithms.js?v=14';
+        import { runDiffPipeline } from './src/diff-algorithms.js?v=15';
         console.log('[Main] diff-algorithms imported');
         
         // Import Tree-sitter move detector for semantic move detection
@@ -1633,12 +1600,6 @@
         const resetConfigBtn = document.getElementById('reset-config-btn');
         const helpBtn = document.getElementById('help-btn');
         const aboutBtn = document.getElementById('about-btn');
-        const maxLinesInput = document.getElementById('max-lines');
-        const maxVerticesInput = document.getElementById('max-graph-vertices');
-        const maxBytesInput = document.getElementById('max-bytes');
-        const astThresholdInput = document.getElementById('ast-line-threshold');
-        const enableAstCheckbox = document.getElementById('enable-ast');
-        const enableGraphDiffCheckbox = document.getElementById('enable-graph-diff');
         const enableFastModeCheckbox = document.getElementById('enable-fast-mode');
         const normalizeDelimitersCheckbox = document.getElementById('normalize-delimiters');
         const correctSlidersCheckbox = document.getElementById('correct-sliders');
@@ -1653,7 +1614,8 @@
         // State
         let currentResults = [];
         let currentStats = null;
-        let currentChangeIndex = -1;
+        let currentChangeIndex = 0;
+        let hasNavigated = false;
         // Mode toggles - all three ON by default
         let modeToggles = {
             lines: true,
@@ -1672,12 +1634,6 @@
 
         // Default Configuration
         const DEFAULT_CONFIG = {
-            maxLines: 50000,
-            maxGraphVertices: 100000,
-            maxBytes: 5000000,
-            astLineThreshold: 1000,
-            enableAST: true,
-            enableGraphDiff: false,
             enableFastMode: true,
             normalizeDelimiters: false,
             correctSliders: false
@@ -1698,8 +1654,8 @@
                 configPanel.classList.remove('hidden');
                 configPanel.removeAttribute('aria-hidden');
                 configToggleBtn.setAttribute('aria-expanded', 'true');
-                // Focus the first input for accessibility
-                setTimeout(() => maxVerticesInput.focus(), 100);
+                // Focus the first checkbox for accessibility
+                setTimeout(() => enableFastModeCheckbox.focus(), 100);
             } else {
                 configPanel.classList.add('hidden');
                 configPanel.setAttribute('aria-hidden', 'true');
@@ -1740,21 +1696,10 @@
         window.saveConfig = function() {
             // Read values from inputs
             currentConfig = {
-                maxLines: parseInt(maxLinesInput.value, 10) || DEFAULT_CONFIG.maxLines,
-                maxGraphVertices: parseInt(maxVerticesInput.value, 10) || DEFAULT_CONFIG.maxGraphVertices,
-                maxBytes: parseInt(maxBytesInput.value, 10) || DEFAULT_CONFIG.maxBytes,
-                enableAST: enableAstCheckbox.checked,
-                enableGraphDiff: enableGraphDiffCheckbox.checked,
                 enableFastMode: enableFastModeCheckbox.checked,
                 normalizeDelimiters: normalizeDelimitersCheckbox.checked,
                 correctSliders: correctSlidersCheckbox.checked
             };
-
-            // Validate values
-            currentConfig.maxLines = Math.max(1000, Math.min(200000, currentConfig.maxLines));
-            currentConfig.maxGraphVertices = Math.max(1000, Math.min(1000000, currentConfig.maxGraphVertices));
-            currentConfig.maxBytes = Math.max(100000, Math.min(10000000, currentConfig.maxBytes));
-            currentConfig.astLineThreshold = Math.max(100, Math.min(10000, currentConfig.astLineThreshold));
 
             try {
                 localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(currentConfig));
@@ -1806,12 +1751,6 @@
          * Apply current configuration values to UI inputs
          */
         function applyConfigToUI() {
-            maxLinesInput.value = currentConfig.maxLines;
-            maxVerticesInput.value = currentConfig.maxGraphVertices;
-            maxBytesInput.value = currentConfig.maxBytes;
-            astThresholdInput.value = currentConfig.astLineThreshold;
-            enableAstCheckbox.checked = currentConfig.enableAST;
-            enableGraphDiffCheckbox.checked = currentConfig.enableGraphDiff;
             enableFastModeCheckbox.checked = currentConfig.enableFastMode;
             normalizeDelimitersCheckbox.checked = currentConfig.normalizeDelimiters;
             correctSlidersCheckbox.checked = currentConfig.correctSliders;
@@ -1827,7 +1766,7 @@
         
         // Version management
         const VERSION = {
-            current: "0.2.1",
+            current: "0.2.2",
             previous: localStorage.getItem("textDiffTool_version") || "0.0.0",
             update: function(newVersion) {
                 this.previous = this.current;
@@ -1929,17 +1868,30 @@
          * @returns {Object} - { parts: Array, isCharMode: boolean }
          */
         function getDiffPartsForChange(change, removedLine, addedLine) {
-            // Check if char mode is enabled and available
-            if (modeToggles.chars && change.charDiff) {
-                const isSmallChange = shouldUseCharHighlighting(change.charDiff, removedLine);
-                if (isSmallChange) {
-                    return { parts: change.charDiff, isCharMode: true };
-                }
+            // Check if this change has nested diffs (comments/strings)
+            const hasNestedDiffs = change.nestedDiffs && change.nestedDiffs.length > 0;
+            
+            // When char mode is enabled and char diff is available:
+            // - For plain code (no nested diffs): use char mode
+            // - For code with comments/strings: use word mode (nested highlighting will handle the regions)
+            if (modeToggles.chars && change.charDiff && !hasNestedDiffs) {
+                return { parts: change.charDiff, isCharMode: true };
             }
             
             // Fall back to word mode if available
             if (modeToggles.words && change.wordDiff) {
                 return { parts: change.wordDiff, isCharMode: false };
+            }
+            
+            // For added/removed lines with nestedDiffs but no wordDiff/charDiff:
+            // Create word diff from the line content to enable nested highlighting
+            if (modeToggles.words && hasNestedDiffs) {
+                // For removed lines: all content is "removed"
+                // For added lines: all content is "added"
+                const lineType = change.type === 'removed' ? 'removed' : 'added';
+                const lineContent = removedLine || addedLine || '';
+                const parts = [{ value: lineContent, [lineType]: true }];
+                return { parts, isCharMode: false };
             }
             
             // No inline diff available
@@ -2069,7 +2021,7 @@
         /**
          * Prepare AST features for diff comparison
          * Parses both files with Tree-sitter and extracts serializable AST features
-         * to pass to the Web Worker for AST-aware similarity calculation
+         * for AST-aware similarity calculation in the main thread
          * 
          * @param {string} oldText - Previous version text
          * @param {string} newText - Current version text
@@ -2079,16 +2031,6 @@
         async function prepareDiffWithAST(oldText, newText, language) {
             // Skip if no language detected or language not supported
             if (!language || !['javascript', 'typescript', 'python', 'json', 'html', 'css', 'go', 'rust', 'java', 'c', 'cpp', 'yaml', 'bash'].includes(language)) {
-                return null;
-            }
-            
-            // Skip if files are too large (AST parsing is expensive)
-            const totalLines = Math.max(
-                oldText.split('\n').length,
-                newText.split('\n').length
-            );
-            if (totalLines > 1000) {
-                console.log('[AST] Skipping AST features for large files (>1000 lines)');
                 return null;
             }
             
@@ -2437,6 +2379,9 @@
                         if (modeToggles.chars && isCharMode) {
                             classes.push('inline-removed-char');
                         }
+                        if (modeToggles.words && !isCharMode) {
+                            classes.push('inline-removed-word');
+                        }
                         // Line-level is always applied as base
                         if (modeToggles.lines) {
                             classes.push('inline-removed-line');
@@ -2507,14 +2452,23 @@
                 });
 
                 if (intersectingNested.length === 0) {
-                    // No nested diffs, render normally
+                    // No nested diffs, render normally with word/char level highlighting
                     const span = document.createElement('span');
                     span.textContent = part.value;
                     
+                    // Apply word or char level highlighting based on mode
                     if (panel === 'previous' && part.removed) {
-                        span.className = 'inline-removed-line';
+                        const classes = [];
+                        if (modeToggles.chars && isCharMode) classes.push('inline-removed-char');
+                        if (modeToggles.words && !isCharMode) classes.push('inline-removed-word');
+                        if (modeToggles.lines) classes.push('inline-removed-line');
+                        span.className = classes.join(' ') || 'inline-removed-line';
                     } else if (panel === 'current' && part.added) {
-                        span.className = 'inline-added-line';
+                        const classes = [];
+                        if (modeToggles.chars && isCharMode) classes.push('inline-added-char');
+                        if (modeToggles.words && !isCharMode) classes.push('inline-added-word');
+                        if (modeToggles.lines) classes.push('inline-added-line');
+                        span.className = classes.join(' ') || 'inline-added-line';
                     } else {
                         span.className = 'inline-unchanged';
                     }
@@ -2522,7 +2476,7 @@
                     fragment.appendChild(span);
                 } else {
                     // This part intersects with nested diffs, need special handling
-                    renderPartWithNestedDiffs(fragment, part, panel, intersectingNested, partStart);
+                    renderPartWithNestedDiffs(fragment, part, panel, isCharMode, intersectingNested, partStart);
                 }
                 
                 position = partEnd;
@@ -2537,10 +2491,11 @@
          * @param {DocumentFragment} fragment - Fragment to append to
          * @param {Object} part - The diff part
          * @param {string} panel - 'previous' or 'current'
+         * @param {boolean} isCharMode - Whether character mode is enabled
          * @param {Array} nestedDiffs - Nested diffs that intersect this part
          * @param {number} partStart - Start position of this part in the line
          */
-        function renderPartWithNestedDiffs(fragment, part, panel, nestedDiffs, partStart) {
+        function renderPartWithNestedDiffs(fragment, part, panel, isCharMode, nestedDiffs, partStart) {
             let position = 0;
             const nestedRegions = nestedDiffs.map(n => 
                 panel === 'previous' ? n.removedRegion : n.addedRegion
@@ -2633,6 +2588,11 @@
 
         // Render unified diff view
         async function renderUnifiedDiff(results, stats) {
+            currentResults = results;
+            currentStats = stats;
+            currentChangeIndex = 0;
+            hasNavigated = false;
+            
             // Reset performance counters
             totalUnchangedLines = 0;
             syntaxHighlightingEnabled = true;
@@ -2890,19 +2850,38 @@
                     }
                 } else if (classification === 'moved' || classification === 'moved-modified') {
                     // Simple moved line - show with proper indicators
+                    // Get tooltip info if available
+                    const blockInfo = change.blockMoveInfo || change.moveInfo;
+                    const isModified = blockInfo && blockInfo.similarity !== undefined && blockInfo.similarity < 0.99;
+                    
+                    // Source tooltip
+                    const sourceTooltip = blockInfo 
+                        ? (isModified 
+                            ? `Block moved and modified (similarity: ${Math.round((blockInfo.similarity || 0) * 100)}%)`
+                            : `Block moved to line ${(blockInfo.newStartLine || blockInfo.to || 0) + 1}`)
+                        : 'Moved';
+                    
+                    // Destination tooltip  
+                    const destTooltip = blockInfo
+                        ? (isModified
+                            ? `Block moved and modified (similarity: ${Math.round((blockInfo.similarity || 0) * 100)}%)`
+                            : `Block moved from line ${(blockInfo.oldStartLine || blockInfo.from || 0) + 1}`)
+                        : 'Moved';
+                    
                     // Source line (shows <)
                     const sourceRow = document.createElement('div');
-                    sourceRow.className = 'unified-row block-moved-from';
+                    sourceRow.className = 'unified-row block-moved-from block-moved-source block-moved-indicator';
                     sourceRow.dataset.index = index;
                     sourceRow.dataset.testid = 'unified-row';
+                    sourceRow.title = sourceTooltip;
 
                     const sourceMarker = document.createElement('div');
                     sourceMarker.className = 'unified-marker';
-                    sourceMarker.textContent = '<';
+                    sourceMarker.textContent = isModified ? '≤' : '<';
 
                     const sourceLineNum = document.createElement('div');
                     sourceLineNum.className = 'unified-line-num';
-                    sourceLineNum.textContent = '<' + prevLineNum++;
+                    sourceLineNum.textContent = (isModified ? '≤' : '<') + prevLineNum++;
 
                     const sourceContent = document.createElement('div');
                     sourceContent.className = 'unified-content';
@@ -2915,17 +2894,18 @@
 
                     // Destination line (shows >)
                     const destRow = document.createElement('div');
-                    destRow.className = 'unified-row block-moved-to';
+                    destRow.className = 'unified-row block-moved-to block-moved-destination block-moved-indicator';
                     destRow.dataset.index = index;
                     destRow.dataset.testid = 'unified-row';
+                    destRow.title = destTooltip;
 
                     const destMarker = document.createElement('div');
                     destMarker.className = 'unified-marker';
-                    destMarker.textContent = '>';
+                    destMarker.textContent = isModified ? '≥' : '>';
 
                     const destLineNum = document.createElement('div');
                     destLineNum.className = 'unified-line-num';
-                    destLineNum.textContent = '>' + currLineNum++;
+                    destLineNum.textContent = (isModified ? '≥' : '>') + currLineNum++;
 
                     const destContent = document.createElement('div');
                     destContent.className = 'unified-content';
@@ -3050,7 +3030,8 @@
         async function renderDiffResults(results, stats) {
             currentResults = results;
             currentStats = stats;
-            currentChangeIndex = -1;
+            currentChangeIndex = 0;
+            hasNavigated = false;
             
             // Reset performance counters
             totalUnchangedLines = 0;
@@ -3082,6 +3063,11 @@
 
                 // Skip the "added" side of a modified pair - we render both panels when processing the "removed" side
                 if (classification === 'modified' && change.added) {
+                    continue;
+                }
+                
+                // Skip entries that are the "added" side of a modified pair (now marked as modified-skipped)
+                if (classification === 'modified-skipped') {
                     continue;
                 }
 
@@ -3313,15 +3299,22 @@
                             // Multi-line modified - create separate rows for each line pair with inline highlighting
                             rowsAppended = true;
                             
-                            // Split the diff parts by lines for proper per-line highlighting
+                            // Use the pre-computed per-line diffs if available
                             const diffParts = getDiffPartsForChange(change, removedLineValue, addedLineValue);
                             let prevLineParts = [];
                             let currLineParts = [];
                             
                             if (diffParts.parts && (modeToggles.words || modeToggles.chars)) {
-                                // Split the diff parts by lines
-                                prevLineParts = splitDiffPartsByLines(diffParts.parts, validModLines);
-                                currLineParts = splitDiffPartsByLines(diffParts.parts, validAddedLines);
+                                // Try to use per-line diffs first
+                                if (change.lineDiffs && change.lineDiffs.length > 0) {
+                                    // Use per-line diffs computed in the algorithm
+                                    prevLineParts = change.lineDiffs.map(ld => ld.prev || [{ value: '', removed: false, added: false }]);
+                                    currLineParts = change.lineDiffs.map(ld => ld.curr || [{ value: '', removed: false, added: false }]);
+                                } else {
+                                    // Fall back to splitting the full diff (may have issues with multi-line)
+                                    prevLineParts = splitDiffPartsByLines(diffParts.parts, validModLines);
+                                    currLineParts = splitDiffPartsByLines(diffParts.parts, validAddedLines);
+                                }
                             }
                             
                             const lineCount = Math.max(validModLines.length, validAddedLines.length);
@@ -3375,11 +3368,11 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                         
                         if (validMovedLines.length === 1) {
                             // Single line - render normally
-                            prevRow.classList.add('block-moved-from');
+                            prevRow.classList.add('block-moved-from', 'block-moved-indicator');
                             prevLineNumDiv.textContent = '<' + prevLineNum++;
                             prevContentDiv.textContent = ' ' + validMovedLines[0];
                             
-                            currRow.classList.add('block-moved-to');
+                            currRow.classList.add('block-moved-to', 'block-moved-indicator');
                             currLineNumDiv.textContent = '>' + currLineNum++;
                             currContentDiv.textContent = ' ' + validMovedLines[0];
                         } else {
@@ -3389,7 +3382,7 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                             for (const line of validMovedLines) {
                                 // Source row
                                 const sourceRow = document.createElement('div');
-                                sourceRow.className = 'diff-row block-moved-from';
+                                sourceRow.className = 'diff-row block-moved-from block-moved-indicator';
                                 sourceRow.dataset.index = index;
                                 sourceRow.dataset.testid = 'diff-row';
                                 const sourceLineNum = document.createElement('div');
@@ -3406,7 +3399,7 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                                 
                                 // Destination row
                                 const destRow = document.createElement('div');
-                                destRow.className = 'diff-row block-moved-to';
+                                destRow.className = 'diff-row block-moved-to block-moved-indicator';
                                 destRow.dataset.index = index;
                                 destRow.dataset.testid = 'diff-row';
                                 const destLineNum = document.createElement('div');
@@ -3432,11 +3425,11 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                         
                         if (validMovedModLines.length === 1) {
                             // Single line - render normally
-                            prevRow.classList.add('block-moved-from-modified');
+                            prevRow.classList.add('block-moved-from-modified', 'block-moved-indicator');
                             prevLineNumDiv.textContent = '<' + prevLineNum++;
                             prevContentDiv.textContent = ' ' + validMovedModLines[0];
                             
-                            currRow.classList.add('block-moved-to-modified');
+                            currRow.classList.add('block-moved-to-modified', 'block-moved-indicator');
                             currLineNumDiv.textContent = '>' + currLineNum++;
                             currContentDiv.textContent = ' ' + validMovedModLines[0];
                         } else {
@@ -3446,7 +3439,7 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                             for (const line of validMovedModLines) {
                                 // Source row (purple - modified)
                                 const sourceRow = document.createElement('div');
-                                sourceRow.className = 'diff-row block-moved-from-modified';
+                                sourceRow.className = 'diff-row block-moved-from-modified block-moved-indicator';
                                 sourceRow.dataset.index = index;
                                 sourceRow.dataset.testid = 'diff-row';
                                 const sourceLineNum = document.createElement('div');
@@ -3463,7 +3456,7 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                                 
                                 // Destination row (purple - modified)
                                 const destRow = document.createElement('div');
-                                destRow.className = 'diff-row block-moved-to-modified';
+                                destRow.className = 'diff-row block-moved-to-modified block-moved-indicator';
                                 destRow.dataset.index = index;
                                 destRow.dataset.testid = 'diff-row';
                                 const destLineNum = document.createElement('div');
@@ -3508,8 +3501,18 @@ prevLineNumDiv.textContent = '~' + prevLineNum++;
                                     : `Block moved to line ${blockInfo.to + 1}`;
                                 
                                 prevRow.classList.add(cssClass, 'block-moved-source', 'block-moved-indicator');
-prevLineNumDiv.textContent = symbol + prevLineNum++;
-                                prevContentDiv.textContent = ' ' + change.value;
+                                prevLineNumDiv.textContent = symbol + prevLineNum++;
+                                // Use inline highlighting if available
+                                if (change.wordDiff || change.charDiff) {
+                                    const diffParts = getDiffPartsForChange(change, change.value, '');
+                                    if (diffParts.parts && (modeToggles.words || modeToggles.chars)) {
+                                        prevContentDiv.appendChild(renderInlineDiff(diffParts.parts, 'previous', diffParts.isCharMode, change));
+                                    } else {
+                                        prevContentDiv.textContent = ' ' + change.value;
+                                    }
+                                } else {
+                                    prevContentDiv.textContent = ' ' + change.value;
+                                }
                                 prevRow.title = tooltipText;
                                 
                                 // Current panel - no content (moved away)
@@ -3529,8 +3532,18 @@ prevLineNumDiv.textContent = symbol + prevLineNum++;
                                 prevContentDiv.textContent = '';
                                 
                                 currRow.classList.add(cssClass, 'block-moved-destination', 'block-moved-indicator');
-currLineNumDiv.textContent = symbol + currLineNum++;
-                                currContentDiv.textContent = ' ' + change.value;
+                                currLineNumDiv.textContent = symbol + currLineNum++;
+                                // Use inline highlighting if available
+                                if (change.wordDiff || change.charDiff) {
+                                    const diffParts = getDiffPartsForChange(change, '', change.value);
+                                    if (diffParts.parts && (modeToggles.words || modeToggles.chars)) {
+                                        currContentDiv.appendChild(renderInlineDiff(diffParts.parts, 'current', diffParts.isCharMode, change));
+                                    } else {
+                                        currContentDiv.textContent = ' ' + change.value;
+                                    }
+                                } else {
+                                    currContentDiv.textContent = ' ' + change.value;
+                                }
                                 currRow.title = tooltipText;
                             }
                         } else {
@@ -3746,7 +3759,7 @@ currLineNumDiv.textContent = symbol + currLineNum++;
         
         // Update navigation UI
         function updateNavigation() {
-            const totalChanges = (currentStats?.added || 0) + (currentStats?.removed || 0) + (currentStats?.modified || 0);
+            const totalChanges = (currentStats?.added || 0) + (currentStats?.removed || 0) + (currentStats?.modified || 0) + (currentStats?.moved || 0);
             
             if (totalChanges === 0) {
                 changeCounter.textContent = '0 of 0';
@@ -3771,11 +3784,15 @@ currLineNumDiv.textContent = symbol + currLineNum++;
                 }
             });
             
-            const currentGroup = Math.max(1, currentChangeIndex + 1);
+            const currentGroup = currentChangeIndex + 1;
             changeCounter.textContent = `${currentGroup} of ${changeGroups}`;
             
-            prevChangeBtn.disabled = currentChangeIndex <= 0;
-            nextChangeBtn.disabled = currentChangeIndex >= changeGroups - 1;
+            // Navigation button states:
+            // - Prev: disabled initially at first change, enabled after navigation starts
+            // - Next: disabled only when at last change AND there are multiple groups
+            const isLastGroup = changeGroups > 1 && currentChangeIndex >= changeGroups - 1;
+            prevChangeBtn.disabled = !hasNavigated && currentChangeIndex <= 0;
+            nextChangeBtn.disabled = isLastGroup;
         }
         
         // Navigate to change
@@ -3802,7 +3819,10 @@ currLineNumDiv.textContent = symbol + currLineNum++;
             rows.forEach((row, index) => {
                 const isChange = row.classList.contains('added') || 
                                 row.classList.contains('removed') || 
-                                row.classList.contains('modified');
+                                row.classList.contains('modified') ||
+                                row.classList.contains('block-moved-from') ||
+                                row.classList.contains('block-moved-to') ||
+                                row.classList.contains('block-moved-indicator');
                 
                 if (isChange && !lastWasChange) {
                     changeIndices.push(index);
@@ -3813,9 +3833,15 @@ currLineNumDiv.textContent = symbol + currLineNum++;
             
             if (changeIndices.length === 0) return;
             
-            // Update index
+            // Mark that navigation has started
+            hasNavigated = true;
+            
+            // Update index - allow navigation even with 1 group
             if (direction === 'next') {
-                currentChangeIndex = Math.min(currentChangeIndex + 1, changeIndices.length - 1);
+                if (changeIndices.length > 1) {
+                    currentChangeIndex = Math.min(currentChangeIndex + 1, changeIndices.length - 1);
+                }
+                // If only 1 group, stay at 0 but that's fine
             } else {
                 currentChangeIndex = Math.max(currentChangeIndex - 1, 0);
             }
@@ -3854,9 +3880,15 @@ currLineNumDiv.textContent = symbol + currLineNum++;
                 return;
             }
             
-            // Detect language for syntax highlighting (use previous text as primary source)
-            const combinedText = oldText || newText;
-            detectedLanguage = detectLanguage('', combinedText);
+            // Detect language for syntax highlighting (combine both texts for better detection)
+            const combinedText = oldText + '\n' + newText;
+            detectedLanguage = await detectLanguageAsync('', combinedText);
+            
+            // If no language detected, use JavaScript as fallback for move detection
+            // This enables content-based move detection to work for pseudo-code
+            if (!detectedLanguage) {
+                console.log('[Main] No language detected, will use JavaScript fallback for move detection');
+            }
             
             // Hide any previous limit warning
             limitWarning.classList.add('hidden');
@@ -3880,10 +3912,6 @@ currLineNumDiv.textContent = symbol + currLineNum++;
 
                 // Run diff pipeline directly in main thread (simplified architecture)
                 const diffLib = { diffLines, diffWords, diffChars };
-                const lineCount = Math.max(
-                    oldText.split('\n').length,
-                    newText.split('\n').length
-                );
                 
                 const pipelineOptions = {
                     modeToggles: modeToggles,
@@ -3891,9 +3919,8 @@ currLineNumDiv.textContent = symbol + currLineNum++;
                     filterOptions,
                     config: currentConfig,
                     astFeatures: astFeatures,
-                    language: astFeatures ? detectedLanguage : null,
+                    language: detectedLanguage, // Always pass language for nested diffs (works with or without AST)
                     useAST: astFeatures !== null,
-                    totalLines: lineCount,
                     normalizeDelimiters: normalizeDelimitersCheckbox?.checked || false,
                     correctSliders: correctSlidersCheckbox?.checked || false
                 };
@@ -3903,23 +3930,39 @@ currLineNumDiv.textContent = symbol + currLineNum++;
                 // Enhance move detection using Tree-sitter AST parsing
                 // This catches semantic moves (including single/multi-line) that standard pipeline misses
                 // when comments or context change, and handles modified moves
-                if (detectedLanguage && result.results.length < 200 && treeSitterParser) {
-                    console.log('[Main] Running Tree-sitter semantic move detection...');
-                    try {
-                        const enhancedResult = await enhanceDiffWithTreeSitterMoves(
-                            result, 
-                            oldText, 
-                            newText, 
-                            treeSitterParser
-                        );
-                        if (enhancedResult && enhancedResult.stats.moved > result.stats.moved) {
-                            console.log(`[Main] Tree-sitter found ${enhancedResult.stats.moved - result.stats.moved} additional moves`);
-                            result.results = enhancedResult.results;
-                            result.stats = enhancedResult.stats;
+                // Run Tree-sitter move detection even without detected language (works for pseudo-code/network configs)
+                if (result.results.length < 200) {
+                    let parserForMoves = treeSitterParser;
+                    
+                    // If no parser available, try to initialize with JavaScript as fallback
+                    if (!parserForMoves && !detectedLanguage) {
+                        console.log('[Main] Initializing Tree-sitter with JavaScript fallback...');
+                        try {
+                            await initTreeSitterHighlighting('javascript');
+                            parserForMoves = treeSitterParser;
+                        } catch (e) {
+                            console.warn('[Main] Could not initialize Tree-sitter:', e.message);
                         }
-                    } catch (tsError) {
-                        console.warn('[Main] Tree-sitter move detection failed:', tsError.message);
-                        // Continue with original results
+                    }
+                    
+                    if (parserForMoves) {
+                        console.log('[Main] Running Tree-sitter semantic move detection...');
+                        try {
+                            const enhancedResult = await enhanceDiffWithTreeSitterMoves(
+                                result, 
+                                oldText, 
+                                newText, 
+                                parserForMoves
+                            );
+                            if (enhancedResult && enhancedResult.stats.moved > result.stats.moved) {
+                                console.log(`[Main] Tree-sitter found ${enhancedResult.stats.moved - result.stats.moved} additional moves`);
+                                result.results = enhancedResult.results;
+                                result.stats = enhancedResult.stats;
+                            }
+                        } catch (tsError) {
+                            console.warn('[Main] Tree-sitter move detection failed:', tsError.message);
+                            // Continue with original results
+                        }
                     }
                 }
 
@@ -4449,17 +4492,12 @@ currLineNumDiv.textContent = symbol + currLineNum++;
 <li><strong>Accessible</strong> - Screen reader support and keyboard navigation</li>
 </ul>
 <p><strong>Technology:</strong></p>
-<p>Built with vanilla JavaScript using the <a href="https://github.com/kpdecker/jsdiff" target="_blank" rel="noopener">jsdiff</a> library. All processing happens in your browser via Web Workers.</p>
+<p>Built with vanilla JavaScript using the <a href="https://github.com/kpdecker/jsdiff" target="_blank" rel="noopener">jsdiff</a> library. All processing happens in your browser.</p>
 <p>&copy; 2025 Jason Tally and contributors. Licensed under MIT.</p>
-            <p>Version: <span id="version-display">0.2.1</span></p>
+            <p>Version: <span id="version-display">0.2.2</span></p>
             `;
             showModal('About', aboutContent);
         };
     </script>
-    <footer>
-        <div style="text-align: center; margin-top: 20px; padding: 10px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
-            Version: <span id="version-display">0.2.1</span>
-        </div>
-    </footer>
 </body>
 </html>

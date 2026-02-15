@@ -39,7 +39,7 @@ test.describe('Config Panel - HTML Structure and Accessibility', () => {
     await expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('should have all input fields with correct attributes', async ({ page }) => {
+  test('should have all checkbox settings with correct attributes', async ({ page }) => {
     // Make panel visible for testing
     await page.evaluate(() => {
       const panel = document.getElementById('config-panel');
@@ -47,47 +47,23 @@ test.describe('Config Panel - HTML Structure and Accessibility', () => {
       panel.removeAttribute('aria-hidden');
     });
     
-    // Max Graph Vertices
-    const maxVertices = page.locator('#max-graph-vertices');
-    await expect(maxVertices).toBeVisible();
-    await expect(maxVertices).toHaveAttribute('type', 'number');
-    await expect(maxVertices).toHaveAttribute('min', '1000');
-    await expect(maxVertices).toHaveAttribute('max', '1000000');
-    await expect(maxVertices).toHaveAttribute('step', '1000');
-    await expect(maxVertices).toHaveAttribute('aria-labelledby', 'max-graph-vertices-label');
-    await expect(maxVertices).toHaveAttribute('aria-describedby', 'max-graph-vertices-desc');
+    // Enable Fast Mode Checkbox
+    const enableFastMode = page.locator('#enable-fast-mode');
+    await expect(enableFastMode).toBeVisible();
+    await expect(enableFastMode).toHaveAttribute('type', 'checkbox');
+    await expect(enableFastMode).toHaveAttribute('aria-labelledby', 'enable-fast-mode-label enable-fast-mode-desc');
     
-    // Max Bytes
-    const maxBytes = page.locator('#max-bytes');
-    await expect(maxBytes).toBeVisible();
-    await expect(maxBytes).toHaveAttribute('type', 'number');
-    await expect(maxBytes).toHaveAttribute('min', '100000');
-    await expect(maxBytes).toHaveAttribute('max', '10000000');
-    await expect(maxBytes).toHaveAttribute('step', '100000');
-    await expect(maxBytes).toHaveAttribute('aria-labelledby', 'max-bytes-label');
-    await expect(maxBytes).toHaveAttribute('aria-describedby', 'max-bytes-desc');
+    // Normalize Delimiters Checkbox
+    const normalizeDelimiters = page.locator('#normalize-delimiters');
+    await expect(normalizeDelimiters).toBeVisible();
+    await expect(normalizeDelimiters).toHaveAttribute('type', 'checkbox');
+    await expect(normalizeDelimiters).toHaveAttribute('aria-labelledby', 'normalize-delimiters-label normalize-delimiters-desc');
     
-    // AST Threshold
-    const astThreshold = page.locator('#ast-line-threshold');
-    await expect(astThreshold).toBeVisible();
-    await expect(astThreshold).toHaveAttribute('type', 'number');
-    await expect(astThreshold).toHaveAttribute('min', '100');
-    await expect(astThreshold).toHaveAttribute('max', '10000');
-    await expect(astThreshold).toHaveAttribute('step', '100');
-    await expect(astThreshold).toHaveAttribute('aria-labelledby', 'ast-line-threshold-label');
-    await expect(astThreshold).toHaveAttribute('aria-describedby', 'ast-line-threshold-desc');
-    
-    // Enable AST Checkbox
-    const enableAST = page.locator('#enable-ast');
-    await expect(enableAST).toBeVisible();
-    await expect(enableAST).toHaveAttribute('type', 'checkbox');
-    await expect(enableAST).toHaveAttribute('aria-labelledby', 'enable-ast-label enable-ast-desc');
-    
-    // Enable Graph Diff Checkbox
-    const enableGraphDiff = page.locator('#enable-graph-diff');
-    await expect(enableGraphDiff).toBeVisible();
-    await expect(enableGraphDiff).toHaveAttribute('type', 'checkbox');
-    await expect(enableGraphDiff).toHaveAttribute('aria-labelledby', 'enable-graph-diff-label enable-graph-diff-desc');
+    // Correct Sliders Checkbox
+    const correctSliders = page.locator('#correct-sliders');
+    await expect(correctSliders).toBeVisible();
+    await expect(correctSliders).toHaveAttribute('type', 'checkbox');
+    await expect(correctSliders).toHaveAttribute('aria-labelledby', 'correct-sliders-label correct-sliders-desc');
   });
 
   test('should have save and reset buttons', async ({ page }) => {
@@ -119,18 +95,14 @@ test.describe('Config Panel - HTML Structure and Accessibility', () => {
     });
     
     // Check labels exist
-    await expect(page.locator('#max-graph-vertices-label')).toBeVisible();
-    await expect(page.locator('#max-bytes-label')).toBeVisible();
-    await expect(page.locator('#ast-line-threshold-label')).toBeVisible();
-    await expect(page.locator('#enable-ast-label')).toBeVisible();
-    await expect(page.locator('#enable-graph-diff-label')).toBeVisible();
+    await expect(page.locator('#enable-fast-mode-label')).toBeVisible();
+    await expect(page.locator('#normalize-delimiters-label')).toBeVisible();
+    await expect(page.locator('#correct-sliders-label')).toBeVisible();
     
     // Check descriptions exist
-    await expect(page.locator('#max-graph-vertices-desc')).toBeVisible();
-    await expect(page.locator('#max-bytes-desc')).toBeVisible();
-    await expect(page.locator('#ast-line-threshold-desc')).toBeVisible();
-    await expect(page.locator('#enable-ast-desc')).toBeVisible();
-    await expect(page.locator('#enable-graph-diff-desc')).toBeVisible();
+    await expect(page.locator('#enable-fast-mode-desc')).toBeVisible();
+    await expect(page.locator('#normalize-delimiters-desc')).toBeVisible();
+    await expect(page.locator('#correct-sliders-desc')).toBeVisible();
   });
 });
 
@@ -139,32 +111,7 @@ test.describe('Config Panel - Input Field Functionality', () => {
     await page.goto('/index.html');
   });
 
-  test('should allow manual interaction with number inputs', async ({ page }) => {
-    // Since JavaScript toggle may not work, we'll manually make the panel visible
-    await page.evaluate(() => {
-      const panel = document.getElementById('config-panel');
-      panel.classList.remove('hidden');
-      panel.removeAttribute('aria-hidden');
-    });
-    
-    // Test max-graph-vertices input
-    const maxVertices = page.locator('#max-graph-vertices');
-    await expect(maxVertices).toBeVisible();
-    await maxVertices.fill('500000');
-    await expect(maxVertices).toHaveValue('500000');
-    
-    // Test max-bytes input
-    const maxBytes = page.locator('#max-bytes');
-    await maxBytes.fill('2000000');
-    await expect(maxBytes).toHaveValue('2000000');
-    
-    // Test ast-line-threshold input
-    const astThreshold = page.locator('#ast-line-threshold');
-    await astThreshold.fill('2000');
-    await expect(astThreshold).toHaveValue('2000');
-  });
-
-  test('should allow toggling checkboxes', async ({ page }) => {
+  test('should allow toggling all checkboxes', async ({ page }) => {
     // Make panel visible
     await page.evaluate(() => {
       const panel = document.getElementById('config-panel');
@@ -172,48 +119,29 @@ test.describe('Config Panel - Input Field Functionality', () => {
       panel.removeAttribute('aria-hidden');
     });
     
-    // Test enable-ast checkbox
-    const enableAST = page.locator('#enable-ast');
-    await expect(enableAST).toBeVisible();
-    await enableAST.check();
-    await expect(enableAST).toBeChecked();
-    await enableAST.uncheck();
-    await expect(enableAST).not.toBeChecked();
+    // Test enable-fast-mode checkbox
+    const enableFastMode = page.locator('#enable-fast-mode');
+    await expect(enableFastMode).toBeVisible();
+    await enableFastMode.check();
+    await expect(enableFastMode).toBeChecked();
+    await enableFastMode.uncheck();
+    await expect(enableFastMode).not.toBeChecked();
     
-    // Test enable-graph-diff checkbox
-    const enableGraphDiff = page.locator('#enable-graph-diff');
-    await expect(enableGraphDiff).toBeVisible();
-    await enableGraphDiff.check();
-    await expect(enableGraphDiff).toBeChecked();
-    await enableGraphDiff.uncheck();
-    await expect(enableGraphDiff).not.toBeChecked();
-  });
-
-  test('should have correct input constraints', async ({ page }) => {
-    // Make panel visible
-    await page.evaluate(() => {
-      const panel = document.getElementById('config-panel');
-      panel.classList.remove('hidden');
-      panel.removeAttribute('aria-hidden');
-    });
+    // Test normalize-delimiters checkbox
+    const normalizeDelimiters = page.locator('#normalize-delimiters');
+    await expect(normalizeDelimiters).toBeVisible();
+    await normalizeDelimiters.check();
+    await expect(normalizeDelimiters).toBeChecked();
+    await normalizeDelimiters.uncheck();
+    await expect(normalizeDelimiters).not.toBeChecked();
     
-    // Test that number inputs have correct min/max constraints
-    const maxVertices = page.locator('#max-graph-vertices');
-    
-    // Verify min and max attributes are set correctly
-    await expect(maxVertices).toHaveAttribute('min', '1000');
-    await expect(maxVertices).toHaveAttribute('max', '1000000');
-    
-    // Test that we can enter valid values
-    await maxVertices.fill('1000'); // minimum valid value
-    await expect(maxVertices).toHaveValue('1000');
-    
-    await maxVertices.fill('1000000'); // maximum valid value
-    await expect(maxVertices).toHaveValue('1000000');
-    
-    // Note: Browser validation (min/max enforcement) happens on form submission
-    // or when the user interacts with the input, not when programmatically setting values
-    // The application JavaScript should handle validation
+    // Test correct-sliders checkbox
+    const correctSliders = page.locator('#correct-sliders');
+    await expect(correctSliders).toBeVisible();
+    await correctSliders.check();
+    await expect(correctSliders).toBeChecked();
+    await correctSliders.uncheck();
+    await expect(correctSliders).not.toBeChecked();
   });
 });
 
@@ -223,13 +151,11 @@ test.describe('Config Panel - localStorage Operations', () => {
   });
 
   test('should handle localStorage operations programmatically', async ({ page }) => {
-    // Test saving to localStorage
+    // Test saving to localStorage with current config keys
     const testConfig = {
-      maxGraphVertices: 750000,
-      maxBytes: 5000000,
-      enableAST: false,
-      astLineThreshold: 5000,
-      enableGraphDiff: true
+      enableFastMode: false,
+      normalizeDelimiters: true,
+      correctSliders: true
     };
     
     await page.evaluate((config) => {
@@ -241,11 +167,9 @@ test.describe('Config Panel - localStorage Operations', () => {
       return JSON.parse(localStorage.getItem('textDiffTool_config') || '{}');
     });
     
-    expect(savedConfig.maxGraphVertices).toBe(750000);
-    expect(savedConfig.maxBytes).toBe(5000000);
-    expect(savedConfig.enableAST).toBe(false);
-    expect(savedConfig.astLineThreshold).toBe(5000);
-    expect(savedConfig.enableGraphDiff).toBe(true);
+    expect(savedConfig.enableFastMode).toBe(false);
+    expect(savedConfig.normalizeDelimiters).toBe(true);
+    expect(savedConfig.correctSliders).toBe(true);
   });
 
   test('should handle corrupt localStorage gracefully', async ({ page }) => {
@@ -270,7 +194,7 @@ test.describe('Config Panel - localStorage Operations', () => {
     // Set partial config
     await page.evaluate(() => {
       const partialConfig = {
-        maxGraphVertices: 600000
+        normalizeDelimiters: true
         // Missing other keys
       };
       localStorage.setItem('textDiffTool_config', JSON.stringify(partialConfig));
@@ -279,22 +203,20 @@ test.describe('Config Panel - localStorage Operations', () => {
     const retrievedConfig = await page.evaluate(() => {
       const saved = JSON.parse(localStorage.getItem('textDiffTool_config') || '{}');
       const defaults = {
-        maxGraphVertices: 300000,
-        maxBytes: 1000000,
-        enableAST: true,
-        astLineThreshold: 1000,
-        enableGraphDiff: false
+        enableFastMode: true,
+        normalizeDelimiters: false,
+        correctSliders: false
       };
       
       // Merge with defaults (simulating what the app should do)
       return { ...defaults, ...saved };
     });
     
-    // Should have custom value for maxGraphVertices
-    expect(retrievedConfig.maxGraphVertices).toBe(600000);
+    // Should have custom value for normalizeDelimiters
+    expect(retrievedConfig.normalizeDelimiters).toBe(true);
     // Should have defaults for other values
-    expect(retrievedConfig.maxBytes).toBe(1000000);
-    expect(retrievedConfig.enableAST).toBe(true);
+    expect(retrievedConfig.enableFastMode).toBe(true);
+    expect(retrievedConfig.correctSliders).toBe(false);
   });
 });
 

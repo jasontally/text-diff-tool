@@ -2,7 +2,7 @@
  * Block Move Detection Module
  * 
  * Git-style hash-based block move detection algorithm.
- * Optimized for reliability and performance with browser Web Worker support.
+ * Optimized for reliability and performance in browser environments.
  * 
  * Copyright (c) 2026 Jason Tally and contributors
  * SPDX-License-Identifier: MIT
@@ -13,11 +13,11 @@
 // ============================================================================
 
 export const BLOCK_MOVE_CONFIG = {
-  MIN_BLOCK_SIZE: 3,              // Minimum lines for a block move
+  MIN_BLOCK_SIZE: 1,              // Minimum lines for a block move (allows single-line moves)
   MAX_BLOCK_SIZE: 100,            // Maximum block size to prevent memory issues
-  MIN_SIMILARITY: 0.65,           // Minimum similarity threshold
-  MOVE_THRESHOLD: 0.70,           // High similarity for "pure" moves
-  MAX_BLOCKS_RETURNED: 100,       // Maximum number of blocks to return
+  MIN_SIMILARITY: 0.50,          // Minimum similarity threshold (aligned with MODIFIED_THRESHOLD)
+  MOVE_THRESHOLD: 0.50,          // Aligned with CONFIG.MOVE_THRESHOLD
+  MAX_BLOCKS_RETURNED: 100,      // Maximum number of blocks to return
   
   // Performance limits
   DEFAULT_TIMEOUT: 5000,          // 5 seconds default timeout
@@ -726,8 +726,8 @@ export function detectBlockMovesFast(
       // Skip if already paired
       if (usedAddedIndices.has(added.index)) continue;
       
-      // Must be from different block
-      if (added.blockIdx === removed.blockIdx) continue;
+      // REMOVED: Must be from different block
+      // Allow same-block matching for moved+modified lines
       
       // Calculate similarity
       const similarity = calculateLineSimilarityFast(removed.line, added.line);
@@ -827,7 +827,7 @@ export function detectBlockMovesFast(
     for (const added of allAdded) {
       if (usedAddedIndices.has(added.index)) continue;
       if (crossBlockModifications.some(m => m.addedIndex === added.index)) continue;
-      if (added.blockIdx === removed.blockIdx) continue;
+      // REMOVED: Allow same-block matching
       
       const similarity = calculateLineSimilarityFast(removed.line, added.line);
       if (similarity > bestSimilarity && similarity >= modifiedThreshold) {

@@ -34,32 +34,36 @@ export function detectMovesWithTreeSitter(oldText, newText, parser, options = {}
   const treeA = parser.parse(oldText);
   const treeB = parser.parse(newText);
 
+  let moves = [];
+  let oldNodes = [];
+  let newNodes = [];
+
+  // Always run content-based detection first (works on ANY text - pseudo-code, network configs, etc.)
+  const contentMoves = findContentMoves(oldText, newText, config);
+  moves = contentMoves;
+
   try {
     // Extract AST nodes (functions, classes, etc.)
-    const oldNodes = extractSignificantNodes(treeA.rootNode, oldText);
-    const newNodes = extractSignificantNodes(treeB.rootNode, newText);
+    oldNodes = extractSignificantNodes(treeA.rootNode, oldText);
+    newNodes = extractSignificantNodes(treeB.rootNode, newText);
 
     // Find moved AST nodes
-    const moves = findMovedNodes(oldNodes, newNodes, config);
+    const astMoves = findMovedNodes(oldNodes, newNodes, config);
     
-    // Also detect content moves (comments, declarations) using line-based comparison
-    // This catches moves that aren't AST nodes but appear in both files
-    const contentMoves = findContentMoves(oldText, newText, config);
-    
-    // Merge moves (avoid duplicates)
-    const allMoves = [...moves, ...contentMoves];
-
-    return {
-      moves: allMoves,
-      oldNodes,
-      newNodes,
-      treeA,
-      treeB
-    };
+    // Merge AST moves with content moves (avoid duplicates)
+    moves = [...moves, ...astMoves];
   } catch (error) {
-    console.error('[TreeSitterMoveDetection] Error:', error);
-    return { moves: [], oldNodes: [], newNodes: [], treeA, treeB };
+    // AST extraction failed (not valid code), but content-based detection already ran
+    console.log('[TreeSitterMoveDetection] AST parsing failed, using content-based detection only');
   }
+
+  return {
+    moves,
+    oldNodes,
+    newNodes,
+    treeA,
+    treeB
+  };
 }
 
 /**
@@ -249,9 +253,9 @@ function findContentMoves(oldText, newText, config) {
   const oldLines = oldText.split('\n');
   const newLines = newText.split('\n');
   
-  // Look for multi-line blocks (2-5 lines) that appear in both files
-  // but at different positions
-  const blockSizes = [5, 4, 3, 2];
+  // Look for multi-line blocks (1-10 lines) that appear in both files
+  // but at different positions. Include single-line moves and large blocks.
+  const blockSizes = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
   const matchedOldLines = new Set();
   const matchedNewLines = new Set();
   
@@ -393,10 +397,57 @@ export function applyTreeSitterMoves(diffResults, moves, oldText, newText) {
         isTreeSitterMove: true,
         moveInfo: move
       };
+    } else {
+      // Try finding as unchanged (lines that exist in both but at different positions)
+      const oldIdx = findDiffIndexForLineAny(enhancedResults, move.oldStartLine);
+      const newIdx = findDiffIndexForLineAny(enhancedResults, move.newStartLine);
+      
+      if (oldIdx !== -1 && newIdx !== -1) {
+        const classif = move.isModified ? 'moved-modified' : 'moved';
+        enhancedResults[oldIdx] = {
+          ...enhancedResults[oldIdx],
+          classification: classif,
+          moveDestination: newIdx,
+          isTreeSitterMove: true,
+          moveInfo: move,
+          blockMoveInfo: move,
+          blockMoveSource: move.oldStartLine,
+          blockMoveDestination: move.newStartLine
+        };
+        enhancedResults[newIdx] = {
+          ...enhancedResults[newIdx],
+          classification: classif,
+          moveSource: oldIdx,
+          isTreeSitterMove: true,
+          moveInfo: move,
+          blockMoveInfo: move,
+          blockMoveSource: move.oldStartLine,
+          blockMoveDestination: move.newStartLine
+        };
+      }
     }
   }
 
   return enhancedResults;
+}
+
+/**
+ * Find diff result index for any type of line (added, removed, or unchanged)
+ */
+function findDiffIndexForLineAny(diffResults, lineNum) {
+  let currentLine = 0;
+
+  for (let i = 0; i < diffResults.length; i++) {
+    const result = diffResults[i];
+    const lines = result.value.split('\n').filter(l => l.length > 0);
+    const lineCount = lines.length;
+
+    if (currentLine <= lineNum && lineNum < currentLine + lineCount) {
+      return i;
+    }
+    currentLine += lineCount;
+  }
+  return -1;
 }
 
 /**
@@ -410,20 +461,20 @@ function findDiffIndexForLine(diffResults, lineNum, type) {
     const lines = result.value.split('\n').filter(l => l.length > 0);
     const lineCount = lines.length;
 
-    if (type === 'removed' && result.removed) {
+    // Count ALL lines in the diff to track position correctly
+    // Only check if this entry matches the requested type
+    const matchesType = (type === 'removed' && result.removed) || 
+                        (type === 'added' && result.added) ||
+                        (!result.added && !result.removed);
+    
+    if (matchesType) {
       if (currentLine <= lineNum && lineNum < currentLine + lineCount) {
         return i;
       }
-      currentLine += lineCount;
-    } else if (type === 'added' && result.added) {
-      if (currentLine <= lineNum && lineNum < currentLine + lineCount) {
-        return i;
-      }
-      currentLine += lineCount;
-    } else if (!result.added && !result.removed) {
-      // Unchanged lines count for both
-      currentLine += lineCount;
     }
+    
+    // Always increment line counter regardless of type
+    currentLine += lineCount;
   }
 
   return -1;

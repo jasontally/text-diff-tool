@@ -4,7 +4,7 @@ A free, private text comparison tool for developers, network engineers, and writ
 
 **Production URL**: [https://diff.jasontally.com](https://diff.jasontally.com) - Use it instantly, no install required  
 **License**: MIT (Copyright (c) 2026 Jason Tally and contributors)  
-**Version**: 0.2.1
+**Version**: 0.2.2
 
 ---
 
@@ -45,7 +45,7 @@ python3 -m http.server 8000
 3. Use **Next/Previous** buttons to navigate changes
 4. Toggle between **Split** and **Unified** views
 
-> **Note**: This tool requires HTTP(S) - it will not work from `file://` URLs due to ES module Web Worker restrictions.
+> **Note**: This tool requires HTTP(S) - it will not work from `file://` URLs due to ES module restrictions.
 
 ---
 
@@ -75,7 +75,7 @@ Any static hosting works (GitHub Pages, Netlify, Vercel, S3, etc.). The producti
 Simply upload:
 
 - `index.html` (main application)
-- `src/` directory (JavaScript modules for Web Workers)
+- `src/` directory (JavaScript modules)
 
 Ensure your server:
 - Serves files over HTTPS
@@ -126,12 +126,12 @@ File type is auto-detected from content and extension.
 
 | Browser | Minimum Version | Notes |
 |---------|----------------|-------|
-| Chrome | 80+ | ES module workers supported |
-| Firefox | 114+ | ES module workers supported |
-| Safari | 15+ | ES module workers supported |
-| Edge | 80+ | ES module workers supported |
+| Chrome | 80+ | ES modules supported |
+| Firefox | 114+ | ES modules supported |
+| Safari | 15+ | ES modules supported |
+| Edge | 80+ | ES modules supported |
 
-Requires ES Module Web Workers. Will not work in IE11 or older browsers.
+Requires ES Modules. Will not work in IE11 or older browsers.
 
 ### Keyboard Shortcuts
 
@@ -158,7 +158,7 @@ Requires ES Module Web Workers. Will not work in IE11 or older browsers.
 
 - **Frontend**: Vanilla HTML/CSS/JS (single file: `index.html`)
 - **Diff Engine**: `diff` library via CDN (esm.sh)
-- **Architecture**: ES Module Web Workers with modular source
+- **Architecture**: ES Modules with modular source
 - **Testing**: Vitest (unit) + Playwright (E2E)
 - **Accessibility**: WCAG 2.1 Level AA compliant
 
@@ -180,13 +180,13 @@ Requires ES Module Web Workers. Will not work in IE11 or older browsers.
 
 **Modular algorithms**: Core diff logic extracted to `src/` modules for:
 - Testability (same code runs in Node.js tests)
-- Worker compatibility (Web Workers import from CDN + local modules)
 - Maintainability (single source of truth)
 
-**Worker pipeline**: Heavy computation runs in Web Worker to keep UI responsive:
-1. Main thread: Get text → Show progress → Send to worker
-2. Web Worker: Run diff → Calculate similarities → Detect moves
-3. Main thread: Render results → Update UI
+**Diff pipeline**: Efficient processing for accurate comparisons:
+1. Run diff algorithm to find changes
+2. Calculate similarities between modified lines
+3. Detect moved blocks and apply corrections
+4. Render results
 
 ### Algorithm Concepts
 
@@ -248,4 +248,4 @@ Contributions welcome! Please read the code conventions and testing guidelines i
 **Copyright (c) 2026 Jason Tally and contributors**  
 **License**: MIT (see [LICENSE](./LICENSE))
 
-Created by Jason Tally | [MIT License](./LICENSE) | Version 0.2.1
+Created by Jason Tally | [MIT License](./LICENSE) | Version 0.2.2

@@ -7,14 +7,13 @@
 
 ## Module Structure
 
-The codebase now uses a modular architecture to enable testing while maintaining single-file deployment capability:
+The codebase uses a modular architecture to enable testing while maintaining single-file deployment capability:
 
 ```
 diff/
 ├── src/
 │   ├── diff-algorithms.js    # Core diff algorithms (environment-agnostic)
 │   ├── diff-loader.js        # Cross-environment import helper
-│   └── diff-worker.js        # Web Worker templates
 ├── tests/
 │   ├── diff.test.js          # Algorithm unit tests
 │   └── diff-loader.test.js   # Import helper tests
@@ -24,13 +23,13 @@ diff/
 
 ### Key Design Decision: Extracted Algorithm Module
 
-**Problem**: Web Worker code that imports from CDN cannot be directly unit tested in Node.js.
+**Problem**: Browser code that imports from CDN cannot be directly unit tested in Node.js.
 
 **Solution**: Extract algorithms into `src/diff-algorithms.js` which:
 - Accepts the `diff` library as a parameter (dependency injection)
 - Works in both browser (CDN) and Node.js (npm) environments
 - Is fully testable with Vitest
-- Can be imported by both the Web Worker and main thread
+- Can be imported by both the browser main thread and tests
 
 ### Import Strategy
 
@@ -40,7 +39,7 @@ The `diff-loader.js` module handles cross-environment imports:
 // Node.js tests: imports from npm
 import { diffLines, diffWords } from 'diff';
 
-// Browser/Worker: imports from CDN
+// Browser: imports from CDN
 import { diffLines, diffWords } from 'https://esm.sh/diff@5.1.0';
 ```
 
@@ -48,29 +47,13 @@ Both environments use the same algorithm code from `diff-algorithms.js`.
 
 ---
 
-## Worker vs Main Thread Pipeline Architecture
+## Main Thread Pipeline Architecture
 
-### Decision: Full Pipeline in Web Worker
-
-All phases of the modified line detection pipeline run inside the Web Worker to prevent main thread blocking.
+All phases of the modified line detection pipeline run in the main thread for simplicity and direct access to browser APIs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    MAIN THREAD (UI)                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. Get text from textareas                                     │
-│  2. Show progress modal                                         │
-│  3. Send texts to worker via postMessage                        │
-│  4. Wait for classified results                                 │
-│  5. Render results using DocumentFragment                       │
-│  6. Hide progress modal                                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ postMessage({ oldText, newText, options })
-┌─────────────────────────────────────────────────────────────────┐
-│                    WEB WORKER (Processing)                      │
+│                    MAIN THREAD                                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  Phase 1: Run diffLines()                                       │
@@ -85,20 +68,20 @@ All phases of the modified line detection pipeline run inside the Web Worker to 
 │     ↓                                                           │
 │  Phase 6: Final classification                                  │
 │     ↓                                                           │
-│  Return classified results to main thread                       │
+│  Render results                                                 │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Full Worker Pipeline?
+### Why Main Thread Pipeline?
 
-1. **No Main Thread Blocking**: Even Phase 2-5 (similarity matrix calculation) can take hundreds of milliseconds for large diffs with many changes
-2. **Simpler Mental Model**: Worker does all diff-related work, main thread does all UI work
-3. **Performance**: Can use heavier algorithms (like MinHash) without worrying about UI jank
+1. **Simplicity**: Direct access to all browser APIs without message passing overhead
+2. **Tree-sitter Integration**: AST parsing requires main thread for syntax highlighting
+3. **Sufficient Performance**: Optimized algorithms handle 10k+ lines efficiently
 
-### Performance Targets with Worker
+### Performance Targets
 
-- **10,000 lines**: < 1 second total (worker processing + DOM render)
+- **10,000 lines**: < 1 second total
 - **50,000 lines**: < 5 seconds, with user warning
 - **Cross-block move detection**: Enabled only for files < 10k lines (via option)
 
@@ -495,271 +478,40 @@ function shouldEnableMoveDetection(totalRemoved, totalAdded, options = {}) {
 
 ---
 
-## Modular Web Worker Implementation
+## How the Main Thread Implementation Works
 
-**Selected Approach: Option B (Modular ES Module Worker)**
-
-Instead of duplicating all algorithm code in the worker, we use a **modular approach** that imports from both CDN (for the diff library) and local `src/` files (for our algorithms). This eliminates code duplication while maintaining static site compatibility.
-
-### Why Modular Workers?
-
-1. **DRY (Don't Repeat Yourself)**: Algorithm code lives in one place (`src/diff-algorithms.js`)
-2. **Testable**: Same code runs in Node.js tests and browser worker via dependency injection
-3. **Maintainable**: Changes to algorithms only need to be made in one file
-4. **Static site**: No build step required - just serve files via HTTP
-5. **ES Modules**: Native browser support, clean imports
-
-### Worker Template
-
-The worker code uses a template pattern where the base URL is resolved at runtime:
-
-```javascript
-// src/diff-worker.js exports this template
-export const WORKER_CODE_TEMPLATE = `
-  // CDN import for diff library
-  import { diffLines, diffWords, diffChars } from 'https://esm.sh/diff@5.1.0';
-  
-  // Local import for our algorithms (path resolved at runtime)
-  import { runDiffPipeline, CONFIG } from './diff-algorithms.js';
-  
-  self.onmessage = function(e) {
-    const { oldText, newText, options } = e.data;
-    
-    try {
-      // Run complete pipeline using extracted algorithms
-      const diffLib = { diffLines, diffWords, diffChars };
-      const result = runDiffPipeline(oldText, newText, diffLib, options);
-      
-      self.postMessage({ 
-        type: 'complete', 
-        results: result.results,
-        stats: result.stats
-      });
-    } catch (error) {
-      self.postMessage({ 
-        type: 'error', 
-        error: error.message,
-        stack: error.stack
-      });
-    }
-  };
-`;
-```
-
-### Creating the Worker at Runtime
-
-In `index.html`, the worker is created by resolving the template's import path dynamically:
-
-```javascript
-// Main thread code in index.html
-class DiffWorker {
-  constructor() {
-    this.worker = null;
-    this.pendingPromise = null;
-    this.init();
-  }
-
-  init() {
-    try {
-      // Resolve the base URL dynamically
-      const baseUrl = window.location.origin;
-      
-      // Get template from diff-worker.js or inline it
-      const template = WORKER_CODE_TEMPLATE; // Import or inline this
-      
-      // Replace the relative import with absolute URL
-      const workerCode = template.replace(
-        "from './diff-algorithms.js'",
-        `from '${baseUrl}/src/diff-algorithms.js'`
-      );
-      
-      // Create worker from Blob URL
-      const blob = new Blob([workerCode], { type: 'application/javascript' });
-      const blobUrl = URL.createObjectURL(blob);
-      this.worker = new Worker(blobUrl, { type: 'module' });
-      
-      this.worker.onmessage = (e) => {
-        if (e.data.type === 'complete') {
-          if (this.pendingPromise) {
-            this.pendingPromise.resolve(e.data);
-            this.pendingPromise = null;
-          }
-        } else if (e.data.type === 'error') {
-          if (this.pendingPromise) {
-            this.pendingPromise.reject(new Error(e.data.error));
-            this.pendingPromise = null;
-          }
-        }
-      };
-
-      this.worker.onerror = (error) => {
-        console.error('Worker error:', error.message);
-        if (this.pendingPromise) {
-          this.pendingPromise.reject(error);
-          this.pendingPromise = null;
-        }
-      };
-    } catch (error) {
-      console.error('Failed to initialize worker:', error);
-    }
-  }
-
-  compare(oldText, newText, options = {}) {
-    if (!this.worker) {
-      return Promise.reject(new Error('Worker not initialized'));
-    }
-
-    return new Promise((resolve, reject) => {
-      this.pendingPromise = { resolve, reject };
-      this.worker.postMessage({ oldText, newText, options });
-    });
-  }
-
-  terminate() {
-    if (this.worker) {
-      this.worker.terminate();
-      this.worker = null;
-    }
-  }
-}
-```
-
-### Alternative: Import Template from Module
-
-Instead of inlining the worker code, `index.html` can import it from `src/diff-worker.js`:
-
-```javascript
-// In index.html
-import { WORKER_CODE_TEMPLATE, createWorker } from './src/diff-worker.js';
-
-// Option 1: Use the helper function
-const worker = createWorker(window.location.origin);
-
-// Option 2: Manual creation with template
-const workerCode = WORKER_CODE_TEMPLATE.replace(
-  "from './diff-algorithms.js'",
-  `from '${window.location.origin}/src/diff-algorithms.js'`
-);
-const blob = new Blob([workerCode], { type: 'application/javascript' });
-const worker = new Worker(URL.createObjectURL(blob), { type: 'module' });
-```
-
----
-
-## Main Thread DiffWorker Class
-
-```javascript
-/**
- * DiffWorker - Web Worker manager for diff calculations (Modular Version)
- * 
- * Uses the WORKER_CODE_TEMPLATE from src/diff-worker.js and resolves
- * import paths dynamically at runtime. This enables the modular approach
- * where algorithms are imported from src/diff-algorithms.js rather than
- * being duplicated inline.
- */
-class DiffWorker {
-  constructor(workerCodeTemplate) {
-    this.worker = null;
-    this.pendingPromise = null;
-    this.onComplete = null;
-    this.workerCodeTemplate = workerCodeTemplate;
-    this.init();
-  }
-
-  init() {
-    try {
-      // Resolve the base URL dynamically
-      const baseUrl = window.location.origin;
-      
-      // Replace the relative import with absolute URL
-      const workerCode = this.workerCodeTemplate.replace(
-        "from './diff-algorithms.js'",
-        `from '${baseUrl}/src/diff-algorithms.js'`
-      );
-      
-      // Create worker from Blob URL
-      const blob = new Blob([workerCode], { type: 'application/javascript' });
-      const blobUrl = URL.createObjectURL(blob);
-      this.worker = new Worker(blobUrl, { type: 'module' });
-      
-      this.worker.onmessage = (e) => {
-        if (e.data.type === 'complete') {
-          if (this.pendingPromise) {
-            this.pendingPromise.resolve(e.data);
-            this.pendingPromise = null;
-          }
-          if (this.onComplete) {
-            this.onComplete(e.data);
-          }
-        } else if (e.data.type === 'error') {
-          if (this.pendingPromise) {
-            this.pendingPromise.reject(new Error(e.data.error));
-            this.pendingPromise = null;
-          }
-        }
-      };
-
-      this.worker.onerror = (error) => {
-        console.error('Worker error:', error.message);
-        if (this.pendingPromise) {
-          this.pendingPromise.reject(error);
-          this.pendingPromise = null;
-        }
-      };
-    } catch (error) {
-      console.error('Failed to initialize worker:', error);
-    }
-  }
-
-  /**
-   * Compare two texts and return classified diff results
-   * @param {string} oldText - Previous version text
-   * @param {string} newText - Current version text
-   * @param {object} options - Diff options (mode, detectMoves, etc.)
-   * @returns {Promise<{results: ClassifiedResult[], stats: object}>}
-   */
-  compare(oldText, newText, options = {}) {
-    if (!this.worker) {
-      return Promise.reject(new Error('Worker not initialized'));
-    }
-
-    return new Promise((resolve, reject) => {
-      this.pendingPromise = { resolve, reject };
-      this.worker.postMessage({ oldText, newText, options });
-    });
-  }
-
-  terminate() {
-    if (this.worker) {
-      this.worker.terminate();
-      this.worker = null;
-    }
-  }
-}
-```
+The application runs the diff pipeline directly in the main thread for simplicity. Here's how it works:
 
 ### Usage in index.html
 
 ```javascript
-// Import the worker template from the module
-import { WORKER_CODE_TEMPLATE } from './src/diff-worker.js';
+// Import the diff library from CDN
+import { diffLines, diffWords, diffChars } from 'https://esm.sh/diff@5.1.0';
 
-// Create the worker manager
-const diffWorker = new DiffWorker(WORKER_CODE_TEMPLATE);
+// Import the algorithm pipeline
+import { runDiffPipeline } from './src/diff-algorithms.js';
 
-// Use it
+// Use it directly in the main thread
 async function performComparison() {
   const oldText = document.getElementById('previous-text').value;
   const newText = document.getElementById('current-text').value;
   
-  try {
-    const result = await diffWorker.compare(oldText, newText, { mode: 'lines' });
-    renderDiffResults(result.results, result.stats);
-  } catch (error) {
-    console.error('Comparison failed:', error);
-  }
+  const diffLib = { diffLines, diffWords, diffChars };
+  const result = await runDiffPipeline(oldText, newText, diffLib, {
+    mode: 'lines',
+    detectMoves: true
+  });
+  
+  renderDiffResults(result.results, result.stats);
 }
 ```
+
+### Why This Works Well
+
+1. **Optimized Algorithms**: The diff pipeline uses efficient algorithms (SimHash signatures, LSH indexing) that complete in milliseconds for typical files
+2. **Progress UI**: Shows a progress modal during processing to keep users informed
+3. **Tree-sitter Integration**: Running in main thread allows direct integration with Tree-sitter for AST-aware syntax highlighting
+4. **Simpler Code**: No message passing, no worker lifecycle management, easier debugging
 
 ---
 
@@ -777,7 +529,7 @@ async function performComparison() {
 
 1. **SimHash Signatures**: Reduce expensive word-diff calls by ~80%
 2. **LSH Indexing**: Enable O(R+A) move detection instead of O(R×A)
-3. **Full Worker Pipeline**: Zero main thread blocking during processing
+3. **Efficient Algorithms**: Optimized pipeline handles large files without blocking UI
 4. **DocumentFragment Rendering**: Single DOM reflow for results
 
 ---
@@ -1581,16 +1333,10 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 
 ```javascript
 const PRODUCTION_CONFIG = {
-    // Performance limits
-    maxLines: 50000,
-    maxBytes: 5000000,
-    astLineThreshold: 500,
-    
     // Feature flags
-    enableAST: false,
-    enableGraphDiff: false,
-    normalizeDelimiters: false,
-    correctSliders: false,
+    enableFastMode: true,        // Use fast mode for large files
+    normalizeDelimiters: false,  // Normalize whitespace in delimiters
+    correctSliders: false,       // Auto-correct ambiguous diff alignment
     
     // UI defaults
     defaultView: 'split',

@@ -606,6 +606,78 @@ export async function batchCalculateSimilarity(pairs, diffWords, language, optio
 // ============================================================================
 
 /**
+ * Find the line number of a target line in text
+ * Used to determine if a moved line actually shifted position
+ * 
+ * @param {string} targetLine - Line to search for
+ * @param {string} text - Text to search in
+ * @returns {number} Line number (0-indexed) or -1 if not found
+ */
+function findLineNumberInText(targetLine, text) {
+  const lines = text.split('\n');
+  const targetTrimmed = targetLine.trim();
+  
+  for (let i = 0; i < lines.length; i++) {
+    const lineTrimmed = lines[i].trim();
+    // Check for exact match or high similarity (for modified lines)
+    if (lineTrimmed === targetTrimmed || 
+        (targetTrimmed.length > 3 && lineTrimmed.includes(targetTrimmed)) ||
+        (targetTrimmed.length > 3 && targetTrimmed.includes(lineTrimmed) && 
+         Math.abs(targetTrimmed.length - lineTrimmed.length) < 10)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Split entries with multiple lines into individual entries
+ * This ensures each changed line gets its own entry for consistent handling
+ * 
+ * @param {Array} results - Classified diff results
+ * @returns {Array} Results with multi-line entries split into individual entries
+ */
+function splitMultiLineEntries(results) {
+  const splitResults = [];
+  
+  for (const entry of results) {
+    const lines = entry.value.split('\n');
+    const lineCount = lines.filter(l => l.length > 0).length;
+    
+    // Only split if there are multiple lines
+    if (lineCount > 1 && (entry.classification === 'modified' || entry.classification === 'added' || entry.classification === 'removed')) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length === 0 && i < lines.length - 1) continue;
+        
+        const newEntry = {
+          ...entry,
+          value: line,
+          count: 1,
+          lineIndex: i
+        };
+        
+        // Adjust removedLine/addedLine if present
+        if (entry.removedLine) {
+          const removedLines = entry.removedLine.split('\n');
+          newEntry.removedLine = removedLines[i] || '';
+        }
+        if (entry.addedLine) {
+          const addedLines = entry.addedLine.split('\n');
+          newEntry.addedLine = addedLines[i] || '';
+        }
+        
+        splitResults.push(newEntry);
+      }
+    } else {
+      splitResults.push(entry);
+    }
+  }
+  
+  return splitResults;
+}
+
+/**
  * Group consecutive removes and adds into change blocks for analysis
  * 
  * @param {Array} diffResults - Raw diff output from diffLines()
@@ -615,6 +687,10 @@ export function identifyChangeBlocks(diffResults) {
   const blocks = [];
   let currentBlock = null;
   
+  // Track line numbers for position tracking
+  let oldLineNum = 0;
+  let newLineNum = 0;
+  
   for (let i = 0; i < diffResults.length; i++) {
     const change = diffResults[i];
     
@@ -622,11 +698,48 @@ export function identifyChangeBlocks(diffResults) {
       if (!currentBlock) {
         currentBlock = { removed: [], added: [], startIndex: i };
       }
-      currentBlock.removed.push({ line: change.value, index: i });
+      
+      // Split multi-line entries into individual line entries
+      const lines = change.value.split('\n');
+      let lineOffset = 0;
+      for (const line of lines) {
+        if (line.length > 0 || lineOffset < lines.length - 1) {
+          currentBlock.removed.push({ 
+            line: line, 
+            index: i,           // Original diff entry index
+            lineIndex: lineOffset, // Offset within the multi-line entry
+            lineNumber: oldLineNum, // Actual line number in old text
+            originalEntry: change.value // Keep reference to original for debugging
+          });
+          oldLineNum++;
+        }
+        lineOffset++;
+      }
     } else if (change.added) {
       if (!currentBlock) continue;
-      currentBlock.added.push({ line: change.value, index: i });
+      
+      // Split multi-line entries into individual line entries
+      const lines = change.value.split('\n');
+      let lineOffset = 0;
+      for (const line of lines) {
+        if (line.length > 0 || lineOffset < lines.length - 1) {
+          currentBlock.added.push({ 
+            line: line, 
+            index: i,           // Original diff entry index
+            lineIndex: lineOffset, // Offset within the multi-line entry
+            lineNumber: newLineNum, // Actual line number in new text
+            originalEntry: change.value // Keep reference to original for debugging
+          });
+          newLineNum++;
+        }
+        lineOffset++;
+      }
     } else {
+      // Unchanged - advance both counters
+      const lines = change.value.split('\n').filter(l => l.length > 0);
+      oldLineNum += lines.length;
+      newLineNum += lines.length;
+      
       if (currentBlock && (currentBlock.removed.length > 0 || currentBlock.added.length > 0)) {
         blocks.push(currentBlock);
       }
@@ -637,7 +750,7 @@ export function identifyChangeBlocks(diffResults) {
   if (currentBlock && (currentBlock.removed.length > 0 || currentBlock.added.length > 0)) {
     blocks.push(currentBlock);
   }
-  
+
   return blocks;
 }
 
@@ -686,11 +799,11 @@ export function detectMovesInUnchangedLines(diffResults, oldText, newText) {
   }
   
   // Group consecutive unchanged lines that moved (oldIndex != newIndex)
-  // Only consider it a "move" if position shift is > 5 lines AND block size >= 3
-  // This prevents false positives from simple insertions/deletions nearby
+  // Only consider it a "move" if position shift is > 2 lines AND block size >= 1
+  // This allows detection of single-line moves and smaller position shifts
   let currentBlock = null;
-  const MIN_BLOCK_SIZE = 3;
-  const MIN_POSITION_SHIFT = 5;
+  const MIN_BLOCK_SIZE = 1;
+  const MIN_POSITION_SHIFT = 2;
   
   for (const entry of unchangedEntries) {
     const positionShift = entry.newIndex - entry.oldIndex;
@@ -876,17 +989,112 @@ export function buildOptimizedSimilarityMatrix(block, diffWords, fastThreshold =
   const numRemoved = block.removed.length;
   const numAdded = block.added.length;
   
+  // Helper to split multi-line content into individual lines
+  function splitIntoLines(text) {
+    return text.split('\n').filter((line, idx, arr) => 
+      line.length > 0 || idx < arr.length - 1
+    );
+  }
+  
   // Pre-compute signatures for all lines (O(N+M))
   const removedSigs = block.removed.map(r => generateLineSignature(r.line, numBits));
   const addedSigs = block.added.map(a => generateLineSignature(a.line, numBits));
+  
+  // Pre-split multi-line entries for line-by-line comparison
+  const removedLinesArray = block.removed.map(r => splitIntoLines(r.line));
+  const addedLinesArray = block.added.map(a => splitIntoLines(a.line));
+  
+  // Check if entry has multiple lines
+  const isMultiLine = (linesArray) => linesArray.length > 1;
   
   // Build matrix with tiered approach
   for (let r = 0; r < numRemoved; r++) {
     matrix[r] = [];
     const removedSig = removedSigs[r];
     const removedLine = block.removed[r].line;
+    const removedLines = removedLinesArray[r];
+    const removedIsMulti = isMultiLine(removedLines);
     
     for (let a = 0; a < numAdded; a++) {
+      const addedLine = block.added[a].line;
+      const addedLines = addedLinesArray[a];
+      const addedIsMulti = isMultiLine(addedLines);
+      
+      // Handle multi-line entries: find best matching lines, not positional
+      if (removedIsMulti || addedIsMulti) {
+        const rLines = removedLines.length;
+        const aLines = addedLines.length;
+        
+        // If both are multi-line, find best matching pairs using greedy approach
+        if (removedIsMulti && addedIsMulti) {
+          // Calculate all pairwise similarities
+          const simMatrix = [];
+          for (let i = 0; i < rLines; i++) {
+            simMatrix[i] = [];
+            for (let j = 0; j < aLines; j++) {
+              const rLine = removedLines[i];
+              const aLine = addedLines[j];
+              
+              if (rLine === aLine) {
+                simMatrix[i][j] = 1.0;
+              } else {
+                simMatrix[i][j] = calculateSimilarityEnhanced(rLine, aLine, diffWords, options);
+              }
+            }
+          }
+          
+          // Greedy best-match: pair each removed line with its best matching added line
+          let totalSimilarity = 0;
+          const usedAdded = new Set();
+          
+          // Sort removed lines by their best match (descending) for better pairing
+          const sortedRemovedIdx = [];
+          for (let i = 0; i < rLines; i++) {
+            const bestSim = Math.max(...simMatrix[i]);
+            sortedRemovedIdx.push({ idx: i, bestSim });
+          }
+          sortedRemovedIdx.sort((a, b) => b.bestSim - a.bestSim);
+          
+          for (const { idx: rIdx } of sortedRemovedIdx) {
+            let bestMatch = -1;
+            let bestSim = -1;
+            
+            for (let aIdx = 0; aIdx < aLines; aIdx++) {
+              if (!usedAdded.has(aIdx) && simMatrix[rIdx][aIdx] > bestSim) {
+                bestSim = simMatrix[rIdx][aIdx];
+                bestMatch = aIdx;
+              }
+            }
+            
+            if (bestMatch >= 0) {
+              totalSimilarity += bestSim;
+              usedAdded.add(bestMatch);
+            }
+          }
+          
+          // Penalize for unmatched lines
+          const matchedCount = usedAdded.size;
+          const unmatchedPenalty = (rLines - matchedCount) * 0.1; // Small penalty for unmatched
+          
+          // Also penalize for line count mismatch
+          const lineCountPenalty = Math.abs(rLines - aLines) / Math.max(rLines, aLines);
+          matrix[r][a] = Math.max(0, (totalSimilarity / Math.max(rLines, aLines)) * (1 - lineCountPenalty * 0.5) - unmatchedPenalty);
+        } else {
+          // One is multi-line, one is single-line - compare the single line to all
+          const singleLine = removedIsMulti ? removedLines[0] : addedLines[0];
+          const multiLines = removedIsMulti ? removedLines : addedLines;
+          
+          let bestSim = 0;
+          for (const mLine of multiLines) {
+            const sim = calculateSimilarityEnhanced(singleLine, mLine, diffWords, options);
+            if (sim > bestSim) bestSim = sim;
+          }
+          
+          matrix[r][a] = bestSim * 0.5; // Reduce since not a good match
+        }
+        continue;
+      }
+      
       // Tier 0: Check content hash cache for exact matches
       // Check actual line equality first (most reliable)
       if (removedLine === block.added[a].line) {
@@ -942,7 +1150,7 @@ export function buildOptimizedSimilarityMatrix(block, diffWords, fastThreshold =
  * 
  * @param {Object} block - Block with removed[] and added[] lines
  * @param {number[][]} matrix - Similarity matrix from buildOptimizedSimilarityMatrix
- * @param {Function} diffWords - The diffWords function from the 'diff' library
+ * @param {Function} diffWords function from theWords - The diff 'diff' library
  * @param {Function} diffChars - The diffChars function from the 'diff' library
  * @param {number} modifiedThreshold - Similarity threshold for modifications (default: CONFIG.MODIFIED_THRESHOLD)
  * @param {Object} modeToggles - Which diff modes are enabled
@@ -972,6 +1180,8 @@ export async function findOptimalPairings(
         similarity: matrix[r][a],
         removedIndex: block.removed[r].index,
         addedIndex: block.added[a].index,
+        removedLineIndex: block.removed[r].lineIndex,
+        addedLineIndex: block.added[a].lineIndex,
         removedLine: block.removed[r].line,
         addedLine: block.added[a].line
       });
@@ -1016,6 +1226,65 @@ export async function findOptimalPairings(
       result.charDiff = diffChars(pairing.removedLine, pairing.addedLine);
     }
     
+    // Compute per-line diffs for multi-line content
+    // This ensures proper alignment when rendering
+    if ((modeToggles.words || modeToggles.chars) && 
+        (pairing.removedLine.includes('\n') || pairing.addedLine.includes('\n'))) {
+      const removedLines = pairing.removedLine.split('\n').filter((l, i, arr) => l !== '' || i < arr.length - 1);
+      const addedLines = pairing.addedLine.split('\n').filter((l, i, arr) => l !== '' || i < arr.length - 1);
+      
+      const lineCount = Math.max(removedLines.length, addedLines.length);
+      
+      result.lineDiffs = [];
+      for (let i = 0; i < lineCount; i++) {
+        const rLine = removedLines[i] || '';
+        const aLine = addedLines[i] || '';
+        
+        // Handle edge case: when one line is empty (different number of lines in old vs new)
+        if (!rLine && aLine) {
+          // New line exists but old line is empty - this is an ADDED line
+          // In prev (old) panel: show nothing (gap)
+          // In curr (new) panel: show the added line
+          result.lineDiffs.push({
+            prev: [],  // Empty - line doesn't exist in old version
+            curr: [{ value: aLine, added: true }]
+          });
+          continue;
+        } else if (rLine && !aLine) {
+          // Old line exists but new line is empty - this is a REMOVED line
+          // In prev (old) panel: show the removed line
+          // In curr (new) panel: show nothing (gap)
+          result.lineDiffs.push({
+            prev: [{ value: rLine, removed: true }],
+            curr: []  // Empty - line doesn't exist in new version
+          });
+          continue;
+        } else if (!rLine && !aLine) {
+          // Both are empty - skip
+          result.lineDiffs.push({
+            prev: [],
+            curr: []
+          });
+          continue;
+        }
+        
+        if (modeToggles.chars) {
+          result.lineDiffs.push({
+            prev: diffChars(rLine, aLine),
+            curr: diffChars(aLine, rLine).map(p => ({ ...p, added: p.removed, removed: p.added }))
+          });
+        } else if (modeToggles.words) {
+          const prevDiff = diffWords(rLine, aLine);
+          const currDiffInput = diffWords(aLine, rLine);
+          const currDiff = currDiffInput.map(p => ({ ...p, added: p.removed, removed: p.added }));
+          result.lineDiffs.push({
+            prev: prevDiff,
+            curr: currDiff
+          });
+        }
+      }
+    }
+    
     // Compute nested diffs for comment/string regions (async)
     if (modeToggles.words && language) {
       await computeNestedDiffs(result, diffWords, language);
@@ -1029,28 +1298,44 @@ export async function findOptimalPairings(
   // Handle unpaired removed lines (pure removals)
   for (let r = 0; r < block.removed.length; r++) {
     if (!usedRemoved.has(r)) {
-      pairings.push({
+      const removedLine = block.removed[r].line;
+      const pairing = {
         type: 'removed',
         removedIndex: block.removed[r].index,
         addedIndex: null,
-        removedLine: block.removed[r].line,
+        removedLine: removedLine,
         addedLine: null,
         similarity: 0
-      });
+      };
+      
+      // Compute nested diffs for regions in pure removed lines
+      if (modeToggles.words && language) {
+        await computeNestedDiffsForSingleLine(pairing, removedLine, language, 'removed');
+      }
+      
+      pairings.push(pairing);
     }
   }
   
   // Handle unpaired added lines (pure additions)
   for (let a = 0; a < block.added.length; a++) {
     if (!usedAdded.has(a)) {
-      pairings.push({
+      const addedLine = block.added[a].line;
+      const pairing = {
         type: 'added',
         removedIndex: null,
         addedIndex: block.added[a].index,
         removedLine: null,
-        addedLine: block.added[a].line,
+        addedLine: addedLine,
         similarity: 0
-      });
+      };
+      
+      // Compute nested diffs for regions in pure added lines
+      if (modeToggles.words && language) {
+        await computeNestedDiffsForSingleLine(pairing, addedLine, language, 'added');
+      }
+      
+      pairings.push(pairing);
     }
   }
   
@@ -1114,6 +1399,41 @@ async function computeNestedDiffs(pairing, diffWords, language) {
   }
 }
 
+/**
+ * Compute nested diffs for a single line (pure added or removed)
+ * This allows highlighting regions (strings, comments) within pure add/remove lines
+ * 
+ * @param {Object} pairing - The pairing object to augment
+ * @param {string} line - The line content
+ * @param {string} language - Programming language for context
+ * @param {string} lineType - 'added' or 'removed'
+ */
+async function computeNestedDiffsForSingleLine(pairing, line, language, lineType) {
+  const regions = await detectRegions(line, language);
+  
+  // Check if there are any non-code regions
+  const nonCodeRegions = regions.filter(r => r.type !== REGION_TYPES.CODE);
+  if (nonCodeRegions.length === 0) {
+    return;
+  }
+  
+  // Store region-specific info for rendering
+  pairing.nestedDiffs = [];
+  
+  for (const region of nonCodeRegions) {
+    // For pure added/removed, create a "fake" diff showing the entire region as added/removed
+    const wordDiff = lineType === 'added' 
+      ? [{ value: region.content, added: true, removed: false }]
+      : [{ value: region.content, added: false, removed: true }];
+    
+    pairing.nestedDiffs.push({
+      type: region.type,
+      [lineType + 'Region']: region,
+      wordDiff
+    });
+  }
+}
+
 // ============================================================================
 // Phase 6: Final Classification
 // ============================================================================
@@ -1132,15 +1452,17 @@ export async function detectModifiedLines(diffResults, diffWords, diffChars, opt
   debugContentStats('detectModifiedLines:input', diffResults, 'START');
   
   const blocks = identifyChangeBlocks(diffResults);
-  const allPairings = [];
   const modeToggles = options.modeToggles || { lines: true, words: true, chars: true };
   const language = options.language || null;
+  
+  const allPairings = [];
   
   for (const block of blocks) {
     const matrix = buildOptimizedSimilarityMatrix(
       block, 
       diffWords, 
-      options.fastThreshold || CONFIG.FAST_THRESHOLD
+      options.fastThreshold || CONFIG.FAST_THRESHOLD,
+      { ...options, diffChars }
     );
     const pairings = await findOptimalPairings(
       block, 
@@ -1154,30 +1476,22 @@ export async function detectModifiedLines(diffResults, diffWords, diffChars, opt
     allPairings.push(...pairings);
   }
   
-  // Optional move detection with cross-block modification support
+  // Optional move detection with cross-block modification support (run again for final results)
   let moves = new Map();
   let crossBlockModifications = [];
   
-  // Get virtual move blocks - either from pre-detected option or detect them here
-  // Pre-detected blocks come from runSinglePassDiff which runs detection on raw results
-  // before fixDiffLinesClassification potentially corrupts them
-  const virtualMoveBlocks = options._virtualMoveBlocks || 
-    ((options.detectMoves !== false && oldText && newText) 
-      ? detectMovesInUnchangedLines(diffResults, oldText, newText)
-      : []);
+  // Use detectBlockMovesFast as the single move detection system
+  // It handles hash-based blocks, individual line moves, and cross-block modifications
   
-  // Merge virtual blocks with regular blocks for move detection
-  const allBlocksForMoveDetection = [...blocks, ...virtualMoveBlocks];
-  
-  // Count physical lines (not diff entries) since diffLines groups lines
-  const totalRemoved = allBlocksForMoveDetection.reduce((sum, b) => 
+  // Count physical lines for move detection threshold check
+  const totalRemoved = blocks.reduce((sum, b) => 
     sum + b.removed.reduce((lineSum, r) => lineSum + (r.line?.split('\n').length || 1), 0), 0);
-  const totalAdded = allBlocksForMoveDetection.reduce((sum, b) => 
+  const totalAdded = blocks.reduce((sum, b) => 
     sum + b.added.reduce((lineSum, a) => lineSum + (a.line?.split('\n').length || 1), 0), 0);
   
   if (options.detectMoves !== false && (totalRemoved + totalAdded) < CONFIG.MAX_LINES_FOR_MOVE_DETECTION) {
     const moveResult = detectBlockMovesFast(
-      allBlocksForMoveDetection, 
+      blocks, 
       diffWords, 
       diffChars,
       CONFIG.LSH_BANDS, 
@@ -1202,16 +1516,44 @@ export async function detectModifiedLines(diffResults, diffWords, diffChars, opt
   }
   
   // Merge classifications
+  // Track which entries have been handled as the "removed" side of a modified pair
+  const handledAsRemovedSide = new Set();
+  
+  // First pass: mark all entries that are the "removed" side of a modified pair
+  for (const pairing of allPairings) {
+    if (pairing.type === 'modified') {
+      handledAsRemovedSide.add(pairing.removedIndex);
+    }
+  }
+  
   const classified = diffResults.map((change, index) => {
     const pairing = allPairings.find(p => 
       p.removedIndex === index || p.addedIndex === index
     );
     
     if (pairing) {
+      // Only mark as "modified" if this is the "removed" side of the pair
+      // The "added" side will be skipped during rendering
+      const isRemovedSide = pairing.type === 'modified' && pairing.removedIndex === index;
+      const isModified = pairing.type === 'modified' && isRemovedSide;
+      
+      if (!isModified) {
+        // If this is the "added" side of a modified pair, skip it
+        // The removed side already has both removedLine and addedLine
+        if (pairing.type === 'modified' && pairing.addedIndex === index) {
+          return {
+            ...change,
+            index: index,
+            classification: 'modified-skipped'
+          };
+        }
+        // For non-modified pairings, proceed normally
+      }
+      
       const result = {
         ...change,
         index: index,
-        classification: pairing.type,
+        classification: isModified ? 'modified' : pairing.type,
         pairIndex: pairing.type === 'modified' 
           ? (change.removed ? pairing.addedIndex : pairing.removedIndex)
           : null,
@@ -1231,6 +1573,12 @@ export async function detectModifiedLines(diffResults, diffWords, diffChars, opt
       }
       if (pairing.charDiff) {
         result.charDiff = pairing.charDiff;
+      }
+      if (pairing.nestedDiffs) {
+        result.nestedDiffs = pairing.nestedDiffs;
+      }
+      if (pairing.lineDiffs) {
+        result.lineDiffs = pairing.lineDiffs;
       }
       
       return result;
@@ -1364,20 +1712,39 @@ export async function detectModifiedLines(diffResults, diffWords, diffChars, opt
             fromEntry.classification = 'block-moved';
             fromEntry.blockMoveDestination = toIndex;
             fromEntry.blockMoveInfo = blockMove;
+            
+            // Compute word/char diff for inline highlighting if lines have content
+            if (fromEntry.value && toEntry && toEntry.value && diffWords) {
+              fromEntry.wordDiff = diffWords(fromEntry.value, toEntry.value);
+              if (diffChars) {
+                fromEntry.charDiff = diffChars(fromEntry.value, toEntry.value);
+              }
+            }
           }
           
           if (toEntry) {
             toEntry.classification = 'block-moved';
             toEntry.blockMoveSource = fromIndex;
             toEntry.blockMoveInfo = blockMove;
+            
+            // Compute word/char diff for inline highlighting if lines have content
+            if (toEntry.value && fromEntry && fromEntry.value && diffWords) {
+              toEntry.wordDiff = diffWords(fromEntry.value, toEntry.value);
+              if (diffChars) {
+                toEntry.charDiff = diffChars(fromEntry.value, toEntry.value);
+              }
+            }
           }
         }
       }
     }
   }
   
-  debugContentStats('detectModifiedLines:output', classified, 'EXIT');
-  return classified;
+  // Split multi-line entries into individual entries
+  const splitResults = splitMultiLineEntries(classified);
+  
+  debugContentStats('detectModifiedLines:output', splitResults, 'EXIT');
+  return splitResults;
 }
 
 // ============================================================================
@@ -2372,21 +2739,13 @@ async function runSinglePassDiff(processedOldText, processedNewText, diffLib, op
   
   debugLog('runSinglePassDiff', 'START');
   
-  // Detect language for nested diff processing
-  const language = detectCommonLanguage(processedOldText, processedNewText);
+  // Use passed language from options, or detect if not provided
+  const language = options?.language || detectCommonLanguage(processedOldText, processedNewText);
   
   // Run primary diff - always use line-level for the main comparison
   debugLog('runSinglePassDiff', 'Running diffLines...');
   const rawResults = diffLines(processedOldText, processedNewText);
   debugContentStats('runSinglePassDiff:raw', rawResults, 'after diffLines');
-
-  // Detect moves in unchanged lines BEFORE fixDiffLinesClassification
-  // (fixDiffLinesClassification can incorrectly mark moved content as added)
-  const virtualMoveBlocks = (options?.detectMoves !== false)
-    ? detectMovesInUnchangedLines(rawResults, processedOldText, processedNewText)
-    : [];
-  
-  debugLog('runSinglePassDiff', `Virtual move blocks detected: ${virtualMoveBlocks.length}`);
 
   // Post-process to fix diffLines classification bug (v5.1.0)
   debugLog('runSinglePassDiff', 'Running fixDiffLinesClassification...');
@@ -2402,7 +2761,7 @@ async function runSinglePassDiff(processedOldText, processedNewText, diffLib, op
   }
 
   // Run modified line detection pipeline with mode toggles (async)
-  // Pass virtual blocks so they can be included in move detection
+  // detectBlockMovesFast handles all move detection
   debugLog('runSinglePassDiff', 'Running detectModifiedLines...');
   const classified = await detectModifiedLines(results, diffWords, diffChars, {
     detectMoves: options?.detectMoves,
@@ -2410,8 +2769,7 @@ async function runSinglePassDiff(processedOldText, processedNewText, diffLib, op
     modifiedThreshold: options?.modifiedThreshold,
     modeToggles,
     language,
-    normalizeDelimiters: options?.normalizeDelimiters,
-    _virtualMoveBlocks: virtualMoveBlocks
+    normalizeDelimiters: options?.normalizeDelimiters
   }, processedOldText, processedNewText);
   
   debugContentStats('runSinglePassDiff:classified', classified, 'after detectModifiedLines');

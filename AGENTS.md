@@ -20,7 +20,6 @@ diff/
 ├── src/                    # Source modules (extracted for testability)
 │   ├── diff-algorithms.js  # Core diff algorithms (environment-agnostic)
 │   ├── diff-loader.js      # Cross-environment import helper
-│   └── diff-worker.js      # Web Worker templates
 ├── index.html              # Main application (HTML/CSS/JS)
 ├── README.md               # User-facing documentation
 ├── ARCHITECTURE.md         # Detailed architecture & algorithm specs
@@ -45,31 +44,23 @@ diff/
 
 ### Application Structure
 
-**Modular architecture with single-file deployment**: The app uses extracted ES modules in `src/` for testability, which are then used by both the Web Worker and unit tests.
+**Modular architecture with single-file deployment**: The app uses extracted ES modules in `src/` for testability, which are then used by unit tests and the main application.
 
-**Web Worker Strategy** (Modular Approach - Option B): Uses ES module workers with Blob URLs that import from both CDN (diff library) and local `src/` files (algorithms):
+**Main Thread Execution**: The diff pipeline runs directly in the main thread for simplicity:
 
 ```javascript
-// Worker template from src/diff-worker.js imports from CDN + local modules
-const WORKER_CODE_TEMPLATE = `
-  import { diffLines, diffWords, diffChars } from 'https://esm.sh/diff@5.1.0';
-  import { runDiffPipeline } from './diff-algorithms.js';
-  // ... worker implementation using imported algorithms
-`;
+// Main thread in index.html imports from CDN + local modules
+import { diffLines, diffWords, diffChars } from 'https://esm.sh/diff@5.1.0';
+import { runDiffPipeline } from './src/diff-algorithms.js';
 
-// Resolve import path at runtime, then create Blob URL
-const baseUrl = window.location.origin;
-const workerCode = WORKER_CODE_TEMPLATE.replace(
-  "from './diff-algorithms.js'",
-  `from '${baseUrl}/src/diff-algorithms.js'`
-);
-const blob = new Blob([workerCode], { type: 'application/javascript' });
-const worker = new Worker(URL.createObjectURL(blob), { type: 'module' });
+// Run the pipeline
+const diffLib = { diffLines, diffWords, diffChars };
+const result = await runDiffPipeline(oldText, newText, diffLib, options);
 ```
 
 **Key Benefits**:
-- **No code duplication**: Algorithms in `src/diff-algorithms.js` are imported by both worker and unit tests
-- **Testable**: Same code runs in Node.js (tests) and browser (worker)
+- **No code duplication**: Algorithms in `src/diff-algorithms.js` are the single source of truth
+- **Testable**: Same code runs in Node.js (tests) and browser
 - **Maintainable**: Single source of truth for all algorithm logic
 - **Static site**: No build step required - just serve files via HTTP(S)
 
@@ -123,14 +114,12 @@ All runtime dependencies must be loaded via CDN:
 - Integration of multiple systems working together
 - Features that rely on browser environment (file upload, downloads)
 - **Performance testing** - timing large file operations (10k lines)
-- Web Worker operation and message passing
 
 **Anti-Pattern to Avoid:**
 
 - **Never modify production code to work around unit test environment limitations**
 - If a unit test fails due to missing browser APIs, move the test to E2E
 - Don't add mocks for browser-specific functionality - test in real browsers
-- **Extract algorithms into testable modules** instead of inlining untestable code in workers
 
 ### Debugging the Diff Pipeline
 
@@ -340,7 +329,7 @@ Use **speed-highlight** via CDN - lightweight, fast, zero dependencies:
 
 Despite automated tests, manual testing is still recommended after changes.
 
-**Important**: The app uses ES module Web Workers and **must be served via HTTP(S)**. It will NOT work from `file://` URLs due to CORS restrictions.
+**Important**: The app uses ES modules and **must be served via HTTP(S)**. It will NOT work from `file://` URLs due to CORS restrictions.
 
 **To test:**
 1. Serve the app via HTTP (see Development section below)
@@ -367,7 +356,7 @@ Then open `http://localhost:8000/index.html`
 ### Dealing with Caching Issues
 
 **Python http.server Caching Problem:**
-Python's built-in `http.server` caches files in memory and serves old versions even after file changes. This is especially problematic with ES modules imported by Web Workers.
+Python's built-in `http.server` caches files in memory and serves old versions even after file changes. This is especially problematic with ES modules.
 
 **Symptoms:**
 - File changes not reflected in browser
@@ -396,16 +385,11 @@ Once a module is loaded, it's aggressively cached even with query parameters.
 We've added cache busting to all module imports:
 ```javascript
 // In index.html
-import { WORKER_CODE_TEMPLATE } from './src/diff-worker.js?v=2';
-
-// In diff-worker.js template
-import { initTreeSitter } from './tree-sitter-loader.js?v=2';
+import { runDiffPipeline } from './src/diff-algorithms.js?v=2';
+import { detectCommonLanguage } from './src/language-detect.js?v=2';
 ```
 
-When making changes, increment version numbers in both:
-1. `index.html` - line importing diff-worker.js
-2. `src/diff-worker.js` - all local module imports
-3. `index.html` - replacement patterns in DiffWorker class
+When making changes, increment version numbers in the imports.
 
 **Cache Clearing Checklist:**
 - [ ] Kill and restart server (Python http.server must be fully restarted)
@@ -441,10 +425,10 @@ When making changes, increment version numbers in both:
 
 ### Module Validation System
 
-The application includes a comprehensive module validation system (`src/module-validator.js`) that ensures Web Worker modules are syntactically correct and browser-compatible before worker creation.
+The application includes a comprehensive module validation system (`src/module-validator.js`) that ensures modules are syntactically correct and browser-compatible.
 
 **Key Features:**
-- **Browser Compatibility Detection**: Checks for ES modules, dynamic imports, worker module support
+- **Browser Compatibility Detection**: Checks for ES modules, dynamic imports
 - **Syntax Validation**: Validates import/export statements, detects CommonJS patterns
 - **Import Path Validation**: Validates CDN URLs, relative paths, and local file paths
 - **Cache Management**: Automatic cache busting for development
@@ -452,25 +436,25 @@ The application includes a comprehensive module validation system (`src/module-v
 
 **When to Use Module Validation:**
 
-- **Before worker creation**: Always validate worker code with `validateWorkerModule()`
+- **Module loading**: Validate modules before use
 - **During development**: Use cache busting to avoid stale module issues
 - **Error handling**: Use `createEnhancedErrorMessage()` for user-friendly error messages
 - **Browser compatibility**: Check `getBrowserCompatibility()` before using advanced features
 
 **Validation Guidelines:**
 
-1. **Always validate worker code** before creating Web Workers:
+1. **Validate module syntax** before using:
    ```javascript
-   const validation = validateWorkerModule(workerCode, baseUrl);
+   const validation = validateModuleSyntax(moduleCode);
    if (!validation.isValid) {
-     console.error('Worker validation failed:', validation.errors);
+     console.error('Module validation failed:', validation.errors);
      return;
    }
    ```
 
 2. **Handle degradation gracefully** when features aren't supported:
    ```javascript
-   const strategy = getGracefulDegradationStrategy({ isWorker: true });
+   const strategy = getGracefulDegradationStrategy({ isWorker: false });
    if (!strategy.canProceed) {
      showErrorMessage(strategy.message);
      return;
@@ -479,17 +463,17 @@ The application includes a comprehensive module validation system (`src/module-v
 
 3. **Use cache busting** during development to avoid stale modules:
    ```javascript
-   const workerCode = addCacheBusting(template, Date.now());
+   const moduleUrl = addCacheBusting(originalUrl, Date.now());
    ```
 
 4. **Test in both browsers and Node.js** - the validation system works in both environments with appropriate fallbacks.
 
 **Common Validation Issues:**
 
-- **file:// URLs**: Workers with ES modules require HTTP(S) protocol
+- **file:// URLs**: ES modules require HTTP(S) protocol
 - **CORS errors**: All modules must be served from same origin or with proper CORS headers
 - **MIME type errors**: Server must serve .js files with correct MIME type
-- **Browser compatibility**: Older browsers may not support ES module workers
+- **Browser compatibility**: Older browsers may not support ES modules
 
 **Testing Module Validation:**
 
@@ -584,7 +568,7 @@ The application now uses a 4-tier similarity approach for optimal performance an
 
 **Memory Management:**
 1. Call `clearContentHashCache()` after each diff operation
-2. Use Web Workers for heavy computation to avoid UI blocking
+2. Use optimized algorithms for heavy computation to avoid UI blocking
 3. Implement streaming for very large files if needed
 
 ### Error Handling
@@ -596,7 +580,6 @@ The application now uses a 4-tier similarity approach for optimal performance an
 
 **Graceful Degradation:**
 - Check `getGracefulDegradationStrategy()` when features fail
-- Fall back from ES modules → classic workers → main thread
 - Always provide core functionality even with reduced features
 
 ## Common Mistakes to Avoid
@@ -621,8 +604,8 @@ The application now uses a 4-tier similarity approach for optimal performance an
 ## Performance Considerations
 
 - **10,000 lines should process in < 1 second** (test with E2E)
-- Large diffs use Web Workers for diff calculation to maintain UI responsiveness
-- Progress modal displayed during calculation (minimum 1 second, extends while worker processes)
+- Optimized diff algorithms handle large files efficiently while maintaining UI responsiveness
+- Progress modal displayed during calculation (minimum 1 second, extends while processing)
 - Warn users at 50,000+ lines
 - Reject files at 5MB
 - DOM rendering is synchronous and complete - no virtual scrolling

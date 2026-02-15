@@ -35,10 +35,9 @@ function movedFunction() {
   console.log('\n=== VIRTUAL MOVE BLOCKS ===');
   console.log('Found', virtualBlocks.length, 'virtual blocks');
   
-  // The function moved from line 2 to line 4 - only a 2-line shift
-  // This is below the 5-line threshold, so it won't be detected here
-  // But it SHOULD be detected by detectBlockMovesFast which compares content
-  expect(virtualBlocks.length).toBe(0);
+  // The function moved from line 2 to line 4 - a 2-line shift
+  // With lower threshold (MIN_POSITION_SHIFT=2), this is now detected
+  expect(virtualBlocks.length).toBeGreaterThanOrEqual(1);
 });
 
 test('detectMovesInUnchangedLines detects unchanged blocks that moved significantly', () => {

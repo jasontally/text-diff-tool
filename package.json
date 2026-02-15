@@ -1,6 +1,6 @@
 {
   "name": "text-diff-tool",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Free online text diff tool to compare code and config files. 100% private, client-side processing.",
   "type": "module",
   "scripts": {
@@ -24,9 +24,7 @@
     "@playwright/test": "^1.40.0",
     "@vitest/coverage-v8": "^1.6.1",
     "axe-core": "^4.8.2",
+    "diff": "^5.1.0",
     "vitest": "^1.0.0"
-  },
-  "dependencies": {
-    "diff": "^8.0.3"
   }
 }
